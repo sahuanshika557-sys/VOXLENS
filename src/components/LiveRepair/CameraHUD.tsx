@@ -7,12 +7,15 @@ import {
   Eye,
   Video,
   Sparkles,
-  Thermometer,
-  Wind,
-  Cpu,
-  ShieldAlert
+  RotateCcw,
+  X,
+  Layers,
+  ShieldAlert,
+  Info,
+  CheckCircle2,
+  Cpu
 } from 'lucide-react';
-import { Equipment, VoiceState } from '../../types';
+import { Equipment, VoiceState, BoundingBox } from '../../types';
 import { soundEngine } from '../../utils/soundEngine';
 import { AIOrb } from '../common/AIOrb';
 
@@ -24,6 +27,9 @@ interface CameraHUDProps {
   onCaptureFrame?: (dataUrl: string) => void;
   onImageUploaded?: (dataUrl: string) => void;
   voiceState?: VoiceState;
+  boundingBoxes?: BoundingBox[];
+  scenarioId?: string;
+  onResetImage?: () => void;
 }
 
 export const CameraHUD: React.FC<CameraHUDProps> = ({
@@ -33,61 +39,72 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
   onTriggerScan,
   onCaptureFrame,
   onImageUploaded,
-  voiceState = 'IDLE'
+  voiceState = 'IDLE',
+  boundingBoxes,
+  scenarioId = 'carton-damage',
+  onResetImage
 }) => {
   const [useWebcam, setUseWebcam] = useState<boolean>(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [showOverlays, setShowOverlays] = useState<boolean>(true);
   const [webcamError, setWebcamError] = useState<string | null>(null);
+  const [selectedOverlay, setSelectedOverlay] = useState<BoundingBox | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 4 Industrial Detection Overlays (Section 3)
-  const keyOverlays = [
+  // Default packaging defect overlays if none passed
+  const activeBoxes: BoundingBox[] = boundingBoxes || [
     {
-      id: 'ov-e17',
-      code: 'E17',
-      label: 'ERROR CODE',
-      sublabel: '96% CONFIDENCE',
-      x: 10,
-      y: 14,
-      width: 34,
-      height: 28,
-      severity: 'critical' as const,
-      onClick: () => onDetectFault('E17')
+      id: 'bb-carton-damaged',
+      label: 'DAMAGED CARTON (CRUSHED & TORN)',
+      type: 'defect',
+      confidenceLabel: 'Visual Assessment — Requires Physical Check',
+      x: 28,
+      y: 36,
+      width: 36,
+      height: 38,
+      detail: 'Cardboard carton severely crushed, structural side-wall buckled and torn along top fold',
+      severity: 'critical',
+      isObservedEvidence: true
     },
     {
-      id: 'ov-thermal',
-      code: '88.4°C',
-      label: 'THERMAL HOTSPOT',
-      sublabel: 'LIMIT: 75.0°C EXCEEDED',
-      x: 48,
-      y: 52,
+      id: 'bb-stack-light',
+      label: 'RED TOWER STACK LIGHT (ALARM ACTIVE)',
+      type: 'warning_zone',
+      confidenceLabel: 'Visual Alarm Indicator — Alarm Code Unknown',
+      x: 76,
+      y: 8,
+      width: 18,
+      height: 28,
+      detail: 'Illuminated red stack light. Exact alarm code unknown — verify on HMI/PLC',
+      severity: 'warning',
+      isObservedEvidence: true
+    },
+    {
+      id: 'bb-cartons-intact',
+      label: 'INTACT PACKAGING CARTONS',
+      type: 'intact_item',
+      confidenceLabel: 'Normal Stream Item',
+      x: 4,
+      y: 44,
+      width: 22,
+      height: 32,
+      detail: 'Upstream/downstream cartons intact with normal rectangular geometry',
+      severity: 'normal',
+      isObservedEvidence: true
+    },
+    {
+      id: 'bb-robot-arm',
+      label: 'ROBOTIC ARM & CONVEYOR TRANSFER',
+      type: 'component',
+      confidenceLabel: 'Packaging Machinery',
+      x: 32,
+      y: 6,
       width: 38,
       height: 28,
-      severity: 'warning' as const
-    },
-    {
-      id: 'ov-airflow',
-      code: '1.2 L/M',
-      label: 'AIRFLOW',
-      sublabel: 'RESTRICTION WARNING',
-      x: 52,
-      y: 16,
-      width: 34,
-      height: 24,
-      severity: 'warning' as const
-    },
-    {
-      id: 'ov-motor',
-      code: 'TB-2',
-      label: 'MOTOR TERMINAL',
-      sublabel: 'INSPECTION ATTENTION',
-      x: 12,
-      y: 56,
-      width: 32,
-      height: 24,
-      severity: 'normal' as const
+      detail: 'Automated robotic pick-and-place mechanism and conveyor transition bed',
+      severity: 'info',
+      isObservedEvidence: true
     }
   ];
 
@@ -105,11 +122,11 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
             }
           })
           .catch(() => {
-            setWebcamError('Camera access unavailable. Reverted to simulated equipment feed.');
+            setWebcamError('Camera access unavailable. Reverted to packaging inspection feed.');
             setUseWebcam(false);
           });
       } else {
-        setWebcamError('Camera API unsupported in this browser. Showing simulated equipment feed.');
+        setWebcamError('Camera API unsupported in this browser. Showing packaging inspection feed.');
         setUseWebcam(false);
       }
     } else {
@@ -143,6 +160,13 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     }
   };
 
+  const handleRemoveImage = () => {
+    soundEngine.playScanPing();
+    setUploadedImage(null);
+    setSelectedOverlay(null);
+    if (onResetImage) onResetImage();
+  };
+
   const handleCaptureFrame = () => {
     soundEngine.playScanPing();
     if (useWebcam && videoRef.current) {
@@ -166,13 +190,14 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     }
   };
 
+  // High-definition packaging line image featuring conveyor, robotic machinery, and cartons
   const imageSrc = uploadedImage || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1600&q=85';
 
   const orbState = isScanning ? 'scanning' : voiceState === 'LISTENING' ? 'listening' : voiceState === 'PROCESSING' ? 'processing' : 'idle';
 
   return (
-    <div className="flex flex-col h-full bg-[#060B16] rounded-3xl border border-white/[0.1] overflow-hidden shadow-2xl relative min-h-[580px]">
-      {/* Hero Machine Header (Section 3) */}
+    <div className="flex flex-col h-full bg-[#060B16] rounded-3xl border border-white/[0.08] overflow-hidden shadow-2xl relative min-h-[560px]">
+      {/* Hero Header */}
       <div className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between bg-[#080F1E]/95 backdrop-blur-md">
         <div className="flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shadow-lg shadow-[#00F0FF]/10">
@@ -181,20 +206,20 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-base sm:text-lg font-black text-white tracking-wide font-sans">
-                LINE 3 PACKAGING UNIT
+                AUTOMATED PACKAGING LINE 3
               </h2>
               <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 font-mono">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                ● LIVE
+                ● LIVE INSPECTION
               </span>
             </div>
             <div className="text-xs text-slate-400 font-mono mt-0.5">
-              <span className="text-[#00F0FF] font-bold">VX-420</span> · S/N DEMO-420-0192 · Assembly Sector 4
+              <span className="text-[#00F0FF] font-bold">Cell ROBO-PKG-03</span> · Sector 4 Conveyor Bed · Visual Defect Engine
             </div>
           </div>
         </div>
 
-        {/* AI Status Orb Banner (Section 4) */}
+        {/* AI Status Orb Banner */}
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2.5 px-3.5 py-1.5 rounded-2xl bg-[#030712]/80 border border-white/[0.08]">
             <AIOrb state={orbState} size="sm" />
@@ -203,7 +228,7 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
                 VOXLENS AI
               </div>
               <div className="text-[11px] font-mono text-slate-300 font-bold">
-                {isScanning ? 'SCANNING MACHINE' : voiceState === 'LISTENING' ? 'LISTENING TO TECH' : 'ANALYZING MACHINE'}
+                {isScanning ? 'ANALYZING DEFECT' : voiceState === 'LISTENING' ? 'LISTENING TO TECH' : 'INSPECTION ACTIVE'}
               </div>
             </div>
           </div>
@@ -213,10 +238,10 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
             className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
               showOverlays ? 'text-[#00F0FF] bg-[#00F0FF]/15 border border-[#00F0FF]/30' : 'text-slate-500 hover:text-slate-300 bg-white/[0.04]'
             }`}
-            title="Toggle Overlays"
+            title="Toggle Visual Evidence Overlays"
           >
             <Eye className="w-4 h-4" />
-            <span className="hidden md:inline">{showOverlays ? 'OVERLAYS ON' : 'OVERLAYS OFF'}</span>
+            <span className="hidden md:inline">{showOverlays ? 'EVIDENCE ON' : 'EVIDENCE OFF'}</span>
           </button>
         </div>
       </div>
@@ -236,9 +261,9 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
         </div>
       )}
 
-      {/* Hero Machine Feed Container */}
-      <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[460px]">
-        {/* Subtle technical grid */}
+      {/* Main Image Inspection Container */}
+      <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[440px]">
+        {/* Subtle industrial grid pattern */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-10" />
 
         {/* Radar Scanning Line */}
@@ -248,7 +273,7 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
             <div className="absolute inset-0 bg-[#00F0FF]/15 backdrop-blur-[2px] flex items-center justify-center pointer-events-none z-30">
               <div className="bg-[#030712]/95 border-2 border-[#00F0FF] px-8 py-4 rounded-3xl text-sm font-mono font-black text-[#00F0FF] flex items-center gap-3 shadow-2xl">
                 <Scan className="w-6 h-6 animate-spin" />
-                <span>AI COMPUTER VISION · SCANNING OPTICAL READOUT &amp; THERMAL MATRIX...</span>
+                <span>AI COMPUTER VISION · ANALYZING CARTON INTEGRITY &amp; MACHINE STATE...</span>
               </div>
             </div>
           </>
@@ -265,20 +290,21 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
         ) : (
           <img
             src={imageSrc}
-            alt="Equipment feed"
+            alt="Packaging Line Inspection Feed"
             className="w-full h-full object-cover"
           />
         )}
 
-        {/* Large, Clean Industrial Overlays (Section 3) */}
-        {showOverlays && keyOverlays.map((ov) => {
+        {/* Evidence Annotation Overlays */}
+        {showOverlays && activeBoxes.map((ov) => {
           const isCritical = ov.severity === 'critical';
           const isWarning = ov.severity === 'warning';
+          const isSelected = selectedOverlay?.id === ov.id;
 
           const borderColor = isCritical
-            ? 'border-red-500 bg-red-950/75 ring-4 ring-red-500/30'
+            ? 'border-red-500 bg-red-950/80 ring-4 ring-red-500/30'
             : isWarning
-              ? 'border-amber-400 bg-amber-950/75 ring-4 ring-amber-400/30'
+              ? 'border-amber-400 bg-amber-950/80 ring-4 ring-amber-400/30'
               : 'border-[#00F0FF] bg-[#030712]/85 ring-4 ring-[#00F0FF]/30';
 
           const tagBg = isCritical
@@ -290,34 +316,73 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           return (
             <div
               key={ov.id}
-              onClick={ov.onClick}
+              onClick={() => setSelectedOverlay(isSelected ? null : ov)}
               style={{
                 left: `${ov.x}%`,
                 top: `${ov.y}%`,
                 width: `${ov.width}%`,
                 height: `${ov.height}%`
               }}
-              className={`absolute border-2 rounded-3xl ${borderColor} cursor-pointer transition-all duration-300 hover:scale-[1.03] p-4 flex flex-col justify-between backdrop-blur-md z-20 shadow-2xl`}
+              className={`absolute border-2 rounded-3xl ${borderColor} cursor-pointer transition-all duration-300 hover:scale-[1.03] p-3.5 flex flex-col justify-between backdrop-blur-md z-20 shadow-2xl ${
+                isSelected ? 'ring-8 ring-[#00F0FF]' : ''
+              }`}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className={`text-xl sm:text-2xl font-mono font-black px-3 py-1 rounded-xl shadow-md ${tagBg}`}>
-                    {ov.code}
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-mono font-black px-2 py-0.5 rounded-lg shadow-md ${tagBg}`}>
+                    {ov.type === 'defect' ? 'DEFECT' : ov.type === 'warning_zone' ? 'ALARM' : 'ITEM'}
                   </span>
-                  <span className="text-xs font-bold text-slate-100 tracking-wider font-mono">
+                  <span className="text-[11px] font-bold text-slate-100 tracking-wider font-mono truncate">
                     {ov.label}
                   </span>
                 </div>
                 {isCritical && (
-                  <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-ping" />
+                  <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
                 )}
               </div>
-              <span className="text-xs font-mono font-black text-slate-100 bg-black/90 px-3 py-1 rounded-xl self-start border border-white/[0.15] shadow-sm">
-                {ov.sublabel}
-              </span>
+
+              <div className="flex items-center justify-between gap-1 pt-1">
+                <span className="text-[10px] font-mono font-black text-slate-200 bg-black/90 px-2 py-1 rounded-lg border border-white/[0.15] truncate">
+                  {ov.confidenceLabel || 'Observed Evidence'}
+                </span>
+                <span className="text-[9px] font-mono text-[#00F0FF] bg-[#00F0FF]/15 px-1.5 py-0.5 rounded">
+                  DIRECT
+                </span>
+              </div>
             </div>
           );
         })}
+
+        {/* Selected Evidence Detail Modal Callout */}
+        {selectedOverlay && (
+          <div className="absolute bottom-4 left-4 right-4 z-30 p-4 rounded-2xl bg-[#030712]/95 border-2 border-[#00F0FF] shadow-2xl backdrop-blur-xl animate-fadeIn">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-[#00F0FF] text-slate-950 text-xs font-mono font-black">
+                    OBSERVED EVIDENCE
+                  </span>
+                  <span className="text-xs font-mono font-bold text-slate-300">
+                    {selectedOverlay.confidenceLabel}
+                  </span>
+                </div>
+                <h4 className="text-sm font-black text-white font-mono">
+                  {selectedOverlay.label}
+                </h4>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  {selectedOverlay.detail}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setSelectedOverlay(null)}
+                className="p-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.15] text-slate-300 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Controls Bar */}
@@ -328,12 +393,12 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
               setUseWebcam(!useWebcam);
               soundEngine.playMicOn();
             }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-sm ${
+            className={`px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-sm ${
               useWebcam
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                 : 'bg-white/[0.06] text-slate-200 hover:bg-white/[0.1]'
             }`}
-            title={useWebcam ? 'Switch to Demo Feed' : 'Enable Camera'}
+            title={useWebcam ? 'Switch to Inspection Feed' : 'Enable Live Camera'}
           >
             {useWebcam ? <Video className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
             <span>{useWebcam ? 'Live Stream' : 'Live Camera'}</span>
@@ -341,11 +406,11 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-mono font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
-            title="Upload JPG/PNG image"
+            className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-mono font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
+            title="Upload JPG, JPEG, PNG, or WEBP inspection image"
           >
             <Upload className="w-4 h-4 text-[#00F0FF]" />
-            <span>Upload Image</span>
+            <span>{uploadedImage ? 'Replace Image' : 'Upload Image'}</span>
           </button>
           <input 
             type="file" 
@@ -355,10 +420,21 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
             className="hidden" 
           />
 
+          {uploadedImage && (
+            <button
+              onClick={handleRemoveImage}
+              className="px-3 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Remove uploaded image & reset feed"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Feed</span>
+            </button>
+          )}
+
           {useWebcam && (
             <button
               onClick={handleCaptureFrame}
-              className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-mono font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
+              className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-mono font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
               title="Capture snapshot frame"
             >
               <Camera className="w-4 h-4 text-emerald-400" />
@@ -376,7 +452,7 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           className="btn-primary py-2.5 px-6 rounded-xl text-xs font-mono font-black tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-lg hover:scale-105"
         >
           <Scan className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-          <span>{isScanning ? 'SCANNING...' : uploadedImage ? 'ANALYZE IMAGE' : 'SCAN MACHINE'}</span>
+          <span>{isScanning ? 'ANALYZING IMAGE...' : 'ANALYZE DEFECT'}</span>
         </button>
       </div>
     </div>

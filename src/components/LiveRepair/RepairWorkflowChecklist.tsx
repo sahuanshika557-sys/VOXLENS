@@ -1,0 +1,470 @@
+import React, { useState } from 'react';
+import { 
+  CheckCircle2, 
+  Circle, 
+  ShieldAlert, 
+  Wrench, 
+  FileText, 
+  Download, 
+  Upload, 
+  UserCheck, 
+  AlertTriangle, 
+  RotateCcw,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  FileCheck,
+  Check,
+  Clock,
+  Layers
+} from 'lucide-react';
+import { RepairWorkflowStep, RootCauseHypothesis, DiagnosticResponseSchema } from '../../types';
+import { soundEngine } from '../../utils/soundEngine';
+
+interface RepairWorkflowChecklistProps {
+  steps: RepairWorkflowStep[];
+  onUpdateSteps: (steps: RepairWorkflowStep[]) => void;
+  hypotheses: RootCauseHypothesis[];
+  onUpdateHypotheses: (hypotheses: RootCauseHypothesis[]) => void;
+  diagnosticData?: DiagnosticResponseSchema;
+  onOpenSafetyModal?: () => void;
+  currentRole?: string;
+}
+
+export const RepairWorkflowChecklist: React.FC<RepairWorkflowChecklistProps> = ({
+  steps,
+  onUpdateSteps,
+  hypotheses,
+  onUpdateHypotheses,
+  diagnosticData,
+  onOpenSafetyModal,
+  currentRole = 'technician'
+}) => {
+  const [expandedStepId, setExpandedStepId] = useState<number | null>(1);
+  const [technicianName, setTechnicianName] = useState<string>('Alex Rivera (Lead Tech III)');
+  const [isSignedOff, setIsSignedOff] = useState<boolean>(false);
+  const [signOffDate, setSignOffDate] = useState<string | null>(null);
+  const [isEscalated, setIsEscalated] = useState<boolean>(false);
+  const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
+
+  const completedCount = steps.filter(s => s.isCompleted).length;
+  const progressPercent = Math.round((completedCount / steps.length) * 100);
+
+  const toggleStepComplete = (id: number) => {
+    soundEngine.playSuccess();
+    const updated = steps.map(s => {
+      if (s.id === id) {
+        const nextState = !s.isCompleted;
+        return {
+          ...s,
+          isCompleted: nextState,
+          completedAt: nextState ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : undefined,
+          completedBy: nextState ? technicianName : undefined
+        };
+      }
+      return s;
+    });
+    onUpdateSteps(updated);
+  };
+
+  const handleUpdateNotes = (id: number, notes: string) => {
+    const updated = steps.map(s => s.id === id ? { ...s, technicianNotes: notes } : s);
+    onUpdateSteps(updated);
+  };
+
+  const handleAttachEvidence = (id: number) => {
+    soundEngine.playScanPing();
+    const sampleAttachment = `EVIDENCE-IMG-STEP${id}-${Date.now().toString().slice(-4)}.jpg (Attached)`;
+    const updated = steps.map(s => s.id === id ? { ...s, evidenceAttachment: sampleAttachment } : s);
+    onUpdateSteps(updated);
+  };
+
+  const handleHypothesisStatus = (id: string, status: RootCauseHypothesis['status']) => {
+    soundEngine.playMicOn();
+    const updated = hypotheses.map(h => h.id === id ? { ...h, status } : h);
+    onUpdateHypotheses(updated);
+  };
+
+  const handleSignOff = () => {
+    if (completedCount < 7) {
+      alert('Verification steps (Steps 1 through 7) must be completed before final operator resolution sign-off.');
+      return;
+    }
+    soundEngine.playSuccessFanfare();
+    setIsSignedOff(true);
+    setSignOffDate(new Date().toLocaleString());
+  };
+
+  const handleReopen = () => {
+    soundEngine.playAlert();
+    setIsSignedOff(false);
+    setSignOffDate(null);
+  };
+
+  const handleExportReport = () => {
+    soundEngine.playSuccess();
+    const reportText = `# VOXLENS AI — Industrial Diagnostic & Repair Report
+Case ID: ${diagnosticData?.caseId || 'CASE-2026-8812'}
+Date: ${new Date().toISOString()}
+Equipment: Automated Packaging Line 3 (Cell ROBO-PKG-03)
+Lead Technician: ${technicianName}
+Resolution Status: ${isSignedOff ? 'VERIFIED_RESOLVED' : isEscalated ? 'ESCALATED_SUPERVISOR' : 'INVESTIGATION_IN_PROGRESS'}
+
+## 1. VISUAL OBSERVATIONS (Direct Evidence)
+- Damaged Carton: Severely crushed & torn cardboard carton resting on conveyor bed.
+- Visual Alarm: Red tower stack light active on packaging machinery mast.
+- Conveyor Stream: Multiple intact upstream/downstream cartons observed.
+- Packaging Machinery: Automated robotic pick-and-place end-effector in operation.
+
+## 2. ROOT-CAUSE HYPOTHESIS STATUS
+${hypotheses.map(h => `- [${h.status}] ${h.title} (${h.category}) — Likelihood: ${h.likelihood}\n  Method: ${h.verificationMethod}`).join('\n')}
+
+## 3. 8-STEP GUIDED REPAIR EXECUTION
+${steps.map(s => `[${s.isCompleted ? 'X' : ' '}] ${s.title}
+  Status: ${s.isCompleted ? `Completed at ${s.completedAt} by ${s.completedBy}` : 'Pending'}
+  Notes: ${s.technicianNotes || 'None recorded'}
+  Evidence: ${s.evidenceAttachment || 'None attached'}`).join('\n\n')}
+
+## 4. SIGN-OFF & OPERATOR VERIFICATION
+- Sign-Off Status: ${isSignedOff ? `Signed off by ${technicianName} at ${signOffDate}` : 'Pending Final Verification'}
+- Acceptance Criteria: Zero carton deformation across 10 sample test run cartons.
+
+Generated by VOXLENS Multimodal AI Assistant.
+`;
+
+    const blob = new Blob([reportText], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `VOXLENS-Diagnostic-Report-${diagnosticData?.caseId || 'CASE-PKG3'}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setDownloadSuccess(true);
+    setTimeout(() => setDownloadSuccess(false), 3000);
+  };
+
+  return (
+    <div className="w-full flex flex-col gap-6">
+      {/* Header & Progress Bar */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-[#060B16] border border-white/[0.08] shadow-2xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-mono font-black text-[#00F0FF] uppercase tracking-widest mb-1">
+              <Wrench className="w-4 h-4" />
+              <span>PHASE 3 — STRUCTURED DIAGNOSTIC &amp; REPAIR ENGINE</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white">
+              8-Step Industrial Troubleshooting Workflow
+            </h3>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleExportReport}
+              className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-xs font-mono font-bold text-slate-200 flex items-center gap-2 transition-all cursor-pointer border border-white/[0.08]"
+              title="Download full diagnostic markdown report"
+            >
+              {downloadSuccess ? <Check className="w-4 h-4 text-emerald-400" /> : <Download className="w-4 h-4 text-[#00F0FF]" />}
+              <span>{downloadSuccess ? 'Downloaded!' : 'Export Report'}</span>
+            </button>
+
+            <button
+              onClick={() => setIsEscalated(!isEscalated)}
+              className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer border ${
+                isEscalated 
+                  ? 'bg-red-500/20 text-red-300 border-red-500/40' 
+                  : 'bg-white/[0.04] text-slate-400 hover:text-slate-200 border-white/[0.06]'
+              }`}
+            >
+              {isEscalated ? 'ESCALATED TO ENGINEERING' : 'Escalate Case'}
+            </button>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-mono">
+            <span className="text-slate-400 font-bold">
+              WORKFLOW PROGRESS: <strong className="text-white">{completedCount} / 8 Steps Completed</strong>
+            </span>
+            <span className={`font-black ${progressPercent === 100 ? 'text-emerald-400' : 'text-[#00F0FF]'}`}>
+              {progressPercent}%
+            </span>
+          </div>
+          <div className="w-full h-3 rounded-full bg-black/50 overflow-hidden border border-white/[0.08]">
+            <div 
+              className="h-full bg-gradient-to-r from-[#00F0FF] to-emerald-400 transition-all duration-300 rounded-full"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Root Cause Hypotheses Tracking Section */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-[#060B16] border border-white/[0.08] shadow-2xl">
+        <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-white/[0.08]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono font-black text-purple-400 uppercase tracking-widest block">
+                HYPOTHESIS VERIFICATION TRACKER
+              </span>
+              <h4 className="text-sm sm:text-base font-black text-white font-mono">
+                Plausible Root-Cause Hypotheses (Requiring Physical Verification)
+              </h4>
+            </div>
+          </div>
+          <span className="text-xs font-mono text-slate-400 bg-white/[0.04] px-2.5 py-1 rounded-lg">
+            5 Hypotheses
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {hypotheses.map((hyp) => (
+            <div
+              key={hyp.id}
+              className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                hyp.status === 'CONFIRMED'
+                  ? 'bg-red-950/25 border-red-500/40 ring-1 ring-red-500/30'
+                  : hyp.status === 'RULED_OUT'
+                    ? 'bg-black/30 border-white/[0.04] opacity-60'
+                    : 'bg-[#0B1220] border-white/[0.06] hover:border-white/[0.12]'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-xs font-mono font-black text-slate-200">
+                    {hyp.title}
+                  </span>
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                    hyp.likelihood === 'High' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' : 'bg-white/[0.06] text-slate-400'
+                  }`}>
+                    {hyp.likelihood} Likelihood
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed mb-2">
+                  {hyp.description}
+                </p>
+                <div className="text-[11px] font-mono text-slate-400 bg-black/40 p-2 rounded-lg mb-3">
+                  <strong className="text-[#00F0FF] block mb-0.5">Verification Method:</strong>
+                  {hyp.verificationMethod}
+                </div>
+              </div>
+
+              {/* Status Action Chips */}
+              <div className="flex items-center gap-1.5 pt-2 border-t border-white/[0.06]">
+                <span className="text-[10px] font-mono text-slate-500 mr-1">Status:</span>
+                {(['INVESTIGATING', 'CONFIRMED', 'RULED_OUT'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => handleHypothesisStatus(hyp.id, st)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                      hyp.status === st
+                        ? st === 'CONFIRMED'
+                          ? 'bg-red-500 text-white font-black'
+                          : st === 'RULED_OUT'
+                            ? 'bg-slate-700 text-slate-300'
+                            : 'bg-[#00F0FF] text-slate-950 font-black'
+                        : 'bg-white/[0.04] text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 8-Step Interactive Checklist Accordion */}
+      <div className="space-y-3">
+        {steps.map((step) => {
+          const isExpanded = expandedStepId === step.id;
+          return (
+            <div
+              key={step.id}
+              className={`rounded-2xl border transition-all overflow-hidden ${
+                step.isCompleted
+                  ? 'bg-[#060D1A] border-emerald-500/30 shadow-md'
+                  : 'bg-[#060B16] border-white/[0.08] hover:border-white/[0.14]'
+              }`}
+            >
+              {/* Step Header Bar */}
+              <div className="p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer select-none">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1" onClick={() => toggleStepComplete(step.id)}>
+                  <button
+                    type="button"
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition-transform hover:scale-110 shrink-0 ${
+                      step.isCompleted ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20' : 'bg-white/[0.06] text-slate-400 border border-white/[0.1]'
+                    }`}
+                    aria-label={step.isCompleted ? 'Mark step incomplete' : 'Mark step complete'}
+                  >
+                    {step.isCompleted ? <Check className="w-5 h-5 stroke-[3]" /> : <Circle className="w-5 h-5" />}
+                  </button>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-mono font-black px-2 py-0.5 rounded ${
+                        step.phase === 'SAFETY' ? 'bg-red-500/20 text-red-300 border border-red-500/40' :
+                        step.phase === 'CONTAINMENT' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
+                        step.phase === 'MECHANICAL' ? 'bg-[#00F0FF]/20 text-[#00F0FF] border border-[#00F0FF]/40' :
+                        step.phase === 'VERIFICATION' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40' :
+                        'bg-white/[0.06] text-slate-300'
+                      }`}>
+                        {step.phase}
+                      </span>
+                      <h4 className={`text-sm sm:text-base font-bold truncate ${step.isCompleted ? 'text-slate-300 line-through' : 'text-white'}`}>
+                        {step.title}
+                      </h4>
+                    </div>
+                    {step.isCompleted && step.completedAt && (
+                      <span className="text-[11px] font-mono text-emerald-400 flex items-center gap-1 mt-0.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Verified by {step.completedBy || 'Technician'} at {step.completedAt}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setExpandedStepId(isExpanded ? null : step.id)}
+                  className="p-2 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title="Expand/Collapse Step Details"
+                >
+                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* Step Expanded Content */}
+              {isExpanded && (
+                <div className="px-5 pb-5 pt-1 border-t border-white/[0.06] space-y-3.5 animate-fadeIn bg-black/20">
+                  <p className="text-sm text-slate-200 leading-relaxed font-sans">
+                    {step.instructions}
+                  </p>
+
+                  {step.safetyWarning && (
+                    <div className="p-3.5 rounded-xl bg-red-950/40 border border-red-500/40 flex items-center gap-2.5 text-xs text-red-200 font-mono">
+                      <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                      <span>{step.safetyWarning}</span>
+                    </div>
+                  )}
+
+                  {/* Technician Notes Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-mono font-bold text-slate-400">
+                      Technician Field Notes / Measurement Findings:
+                    </label>
+                    <textarea
+                      value={step.technicianNotes}
+                      onChange={(e) => handleUpdateNotes(step.id, e.target.value)}
+                      placeholder="e.g. Measured pneumatic regulator pressure at 4.1 Bar. Gripper finger pads intact. Cleared damaged carton debris."
+                      rows={2}
+                      className="w-full p-3 text-xs bg-[#08111F] text-white border border-white/[0.1] rounded-xl focus:border-[#00F0FF] focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Evidence Attachment & Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleAttachEvidence(step.id)}
+                        className="px-3.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-xs font-mono font-bold text-slate-300 flex items-center gap-1.5 transition-colors cursor-pointer border border-white/[0.08]"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-[#00F0FF]" />
+                        <span>{step.evidenceAttachment ? 'Replace Evidence Photo' : 'Attach Evidence Photo'}</span>
+                      </button>
+
+                      {step.evidenceAttachment && (
+                        <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                          ✓ {step.evidenceAttachment}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => toggleStepComplete(step.id)}
+                      className={`px-4 py-1.5 rounded-xl text-xs font-mono font-black transition-all cursor-pointer ${
+                        step.isCompleted
+                          ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                          : 'bg-[#00F0FF] text-slate-950 hover:bg-[#38BDF8] shadow-md shadow-[#00F0FF]/20'
+                      }`}
+                    >
+                      {step.isCompleted ? 'Mark as Incomplete' : 'Complete & Verify Step'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Operator Verification & Final Sign-Off Gate (Step 8) */}
+      <div className="p-6 rounded-3xl bg-[#060B16] border-2 border-emerald-500/40 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+              <FileCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[10px] font-mono font-black text-emerald-400 uppercase tracking-widest block">
+                STEP 8 — RESOLUTION &amp; ACCEPTANCE CRITERIA
+              </span>
+              <h4 className="text-base sm:text-lg font-black text-white">
+                Operator Sign-Off &amp; Production Line Clearance
+              </h4>
+            </div>
+          </div>
+
+          <span className={`px-3 py-1 rounded-xl text-xs font-mono font-black ${
+            isSignedOff ? 'bg-emerald-500 text-slate-950' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+          }`}>
+            {isSignedOff ? 'VERIFIED & RESOLVED' : 'AWAITING VERIFICATION'}
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-300 leading-relaxed font-mono">
+          Acceptance Criteria: Lockout removed per SOP, sample cartons pass pick-and-place transfer with zero crushing, conveyor tracks smoothly, and HMI alarm log is clear.
+        </p>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-2">
+          <div className="flex items-center gap-3 flex-1">
+            <UserCheck className="w-5 h-5 text-slate-400 shrink-0" />
+            <input
+              type="text"
+              value={technicianName}
+              onChange={(e) => setTechnicianName(e.target.value)}
+              placeholder="Authorized Operator / Supervisor Name"
+              className="flex-1 bg-[#08111F] border border-white/[0.1] rounded-xl px-4 py-2.5 text-xs text-white font-mono focus:border-emerald-500"
+            />
+          </div>
+
+          {!isSignedOff ? (
+            <button
+              onClick={handleSignOff}
+              disabled={completedCount < 7}
+              className={`px-6 py-3 rounded-xl font-mono font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg ${
+                completedCount >= 7
+                  ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20 hover:scale-105'
+                  : 'bg-white/[0.06] text-slate-500 cursor-not-allowed'
+              }`}
+            >
+              Sign-Off &amp; Mark Case Resolved
+            </button>
+          ) : (
+            <button
+              onClick={handleReopen}
+              className="px-6 py-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono font-black text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Reopen Case (Re-Inspect)</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

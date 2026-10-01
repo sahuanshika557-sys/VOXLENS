@@ -64,6 +64,7 @@ export interface TranslationDict {
   copilot: {
     greeting: string;
     e17Diagnosis: string;
+    cartonDiagnosis?: string;
     recTitle: string;
     recStep1: string;
     recStep2: string;
@@ -80,6 +81,7 @@ export interface TranslationDict {
     responseCheckFan: string;
     responseCreateTicket: string;
     responseScanDetected: string;
+    responseCartonHelp?: string;
   };
   safetyGate: {
     title: string;
@@ -135,29 +137,31 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDict> = {
       quickPromptsTitle: 'RECOMMENDED QUERIES'
     },
     copilot: {
-      greeting: "Hello Alex. I am connected to the Line 3 VX-420 Packaging Unit (#VX-2048). I am monitoring live optical feeds, telemetry sensors, and technical service manuals.\n\nYou can speak naturally or point your camera at any component or error display.",
+      greeting: "Hello Alex. I am connected to the Packaging Line Inspection Assistant (#VX-2048). I am monitoring live optical feeds, defect detection models, and standard operating procedures.\n\nYou can speak naturally, upload inspection photos, or ask for step-by-step repair guidance.",
       e17Diagnosis: "I detected error E17 and identified the equipment as the Line 3 VX-420 motor-driven packaging unit.\n\nBased on Service Manual Rev 4.2B (Section 4.3, Page 42), the stator temperature has reached 88.4°C exceeding the 75.0°C safety threshold.",
-      recTitle: "RECOMMENDED NEXT STEPS:",
-      recStep1: "1. Inspect axial cooling fan shroud for particulate binding and impeller drag.",
-      recStep2: "2. Verify 3-phase harness connections at Terminal Block TB-2 (2.8 Nm torque).",
-      recStep3: "3. Check overload thermal threshold (currently 88.4°C).",
-      questionAction: "Would you like me to prepare a maintenance ticket and check spare fan inventory in Bay 4?",
+      cartonDiagnosis: "The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action.",
+      recTitle: "RECOMMENDED 8-STEP WORKFLOW:",
+      recStep1: "1. SAFETY: Stop/isolate equipment with Lockout/Tagout (LOTO Disconnect-3A).",
+      recStep2: "2. CONTAINMENT: Reject and safely remove crushed carton; inspect adjacent boxes.",
+      recStep3: "3. MECHANICAL: Inspect robot gripper fingers, vacuum suction, and transfer plate.",
+      questionAction: "Would you like me to guide you through the 8-step repair checklist or search the SOP manual?",
       groundedByManual: "GROUNDED BY OEM MANUAL",
       viewEvidence: "View Evidence",
       safetyRequired: "HUMAN APPROVAL REQUIRED",
       reviewAndAuthorize: "Review & Authorize Action",
       placeholder: "Ask VoxLens or speak into microphone...",
       quickPrompts: [
-        { label: "What does E17 mean?", query: "VoxLens, what does error code E17 mean on the VX-420?" },
-        { label: "What should I check first?", query: "What should I check first for error E17?" },
-        { label: "Check replacement fan", query: "Do we have a replacement cooling fan for VX-420 in Bay 4 inventory?" },
-        { label: "Create ticket", query: "Create a maintenance ticket for suspected cooling fan stall on Line 3." }
+        { label: "Analyze Damaged Carton", query: "VoxLens, what is the diagnosis and recommended workflow for this damaged carton?" },
+        { label: "What should I check first?", query: "What are the immediate safety and containment steps for this defect?" },
+        { label: "Check Gripper & Transfer", query: "How do I inspect the robot gripper pressure and conveyor transfer alignment?" },
+        { label: "Verify Stack Light", query: "How should I verify the red stack light alarm without guessing the fault code?" }
       ],
       responseE17Mean: "Error E17 indicates a Motor Thermal Overload caused by constrained cooling airflow across the stator housing. Safe threshold is 75.0°C; current reading is 88.4°C.",
-      responseCheckFirst: "Per Service Manual Section 4.3 (Page 42), first inspect the axial cooling fan shroud for particulate obstruction, then verify Terminal Block TB-2 connections.",
+      responseCheckFirst: "Per SOP Section 6.2 and Safety Standard LOTO-2.1, first isolate hazardous energy with LOTO Disconnect-3A, then safely quarantine the damaged carton.",
       responseCheckFan: "Inventory search complete: Bay 4 Stockroom currently has 3 units of Part #VX-CF42 (Axial Fan Assembly, $245.00) in Bin C-14.",
-      responseCreateTicket: "I have prepared Work Order #TCK-2026-881 for Line 3. Because part requisition incurs a $245.00 cost, Human Safety Authorization is required.",
-      responseScanDetected: "Optical CV scan verified: Error Code E17 (96% confidence) and Stator Thermal Hotspot at 88.4°C."
+      responseCreateTicket: "I have prepared Maintenance Work Order #TCK-2026-881 for Line 3 Packaging. Awaiting technician checklist verification.",
+      responseScanDetected: "Optical inspection complete: Identified severely crushed carton and active red stack light indicator.",
+      responseCartonHelp: "The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action."
     },
     safetyGate: {
       title: 'HUMAN APPROVAL REQUIRED',
@@ -211,29 +215,31 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDict> = {
       quickPromptsTitle: 'सुझाए गए प्रश्न'
     },
     copilot: {
-      greeting: "नमस्ते एलेक्स। मैं लाइन 3 के VX-420 पैकेजिंग यूनिट (#VX-2048) से जुड़ा हुआ हूँ। मैं लाइव कैमरा, सेंसर टेलीमेट्री और तकनीकी सर्विस मैन्युअल की निगरानी कर रहा हूँ।\n\nआप अपनी भाषा में बात कर सकते हैं या किसी भी पुर्जे की तरफ कैमरा दिखा सकते हैं।",
+      greeting: "नमस्ते एलेक्स। मैं पैकेजिंग लाइन निरीक्षण सहायक (#VX-2048) से जुड़ा हुआ हूँ। मैं लाइव विज़न फीड, डिफेक्ट डिटेक्शन और मानक संचालन प्रक्रियाओं की निगरानी कर रहा हूँ।\n\nआप अपनी भाषा में बात कर सकते हैं, निरीक्षण फोटो अपलोड कर सकते हैं या चरणबद्ध रिपेयर गाइडेंस मांग सकते हैं।",
       e17Diagnosis: "मैंने एरर E17 डिटेक्ट किया है और उपकरण की पहचान लाइन 3 VX-420 पैकेजिंग यूनिट के रूप में की है।\n\nसर्विस मैन्युअल (सेक्शन 4.3, पेज 42) के अनुसार, स्टेटर का तापमान 88.4°C तक पहुँच गया है जो कि 75.0°C की सुरक्षित सीमा से अधिक है।",
-      recTitle: "अनुशंसित अगले चरण:",
-      recStep1: "1. कूलिंग फैन श्राउड की जांच करें कि कोई कचरा तो नहीं फंसा है।",
-      recStep2: "2. टर्मिनल ब्लॉक TB-2 पर 3-फेज वायरिंग कनेक्शन (2.8 Nm टॉर्क) की पुष्टि करें।",
-      recStep3: "3. स्टेटर का ओवरलोड तापमान स्तर (वर्तमान 88.4°C) जांचें।",
-      questionAction: "क्या आप चाहते हैं कि मैं मेंटेनेंस टिकट तैयार करूँ और बे 4 में नए फैन के स्टॉक की जांच करूँ?",
+      cartonDiagnosis: "Image mein conveyor belt par ek cardboard carton buri tarah damage hua dikh raha hai. Sabse pehle affected carton ko production line se safely isolate karein. Iske baad robotic gripper, conveyor transfer points aur carton packaging quality inspect karein. Red warning light ka exact alarm HMI ya PLC se verify karna zaroori hai. Root cause confirm hone ke baad authorized technician corrective action le aur controlled test run kare.",
+      recTitle: "अनुशंसित 8-चरणीय वर्कफ़्लो:",
+      recStep1: "1. सुरक्षा (SAFETY): LOTO Disconnect-3A द्वारा उपकरण को आइसोलेट करें।",
+      recStep2: "2. रोकथाम (CONTAINMENT): क्षतिग्रस्त कार्टन को सुरक्षित हटाएं और पास के बॉक्स जांचें।",
+      recStep3: "3. यांत्रिक जांच (MECHANICAL): रोबोट ग्रिपर, वैक्यूम कप और ट्रांसफर प्लेट का निरीक्षण करें।",
+      questionAction: "क्या आप चाहते हैं कि मैं 8-चरणीय रिपेयर चेकलिस्ट में आपका मार्गदर्शन करूँ?",
       groundedByManual: "ओईएम मैन्युअल द्वारा प्रमाणित",
       viewEvidence: "प्रमाण देखें",
       safetyRequired: "मानवीय अनुमोदन आवश्यक है",
       reviewAndAuthorize: "समीक्षा करें और अधिकृत करें",
       placeholder: "वॉक्सलेंस से पूछें या माइक में बोलें...",
       quickPrompts: [
-        { label: "E17 का क्या मतलब है?", query: "वॉक्सलेंस, VX-420 में एरर कोड E17 का क्या मतलब है?" },
-        { label: "पहले क्या जांचें?", query: "एरर E17 के लिए मुझे सबसे पहले क्या जांचना चाहिए?" },
-        { label: "नया फैन स्टॉक चेक करें", query: "क्या बे 4 इन्वेंट्री में VX-420 का नया कूलिंग फैन उपलब्ध है?" },
-        { label: "मेंटेनेंस टिकट बनाएं", query: "लाइन 3 पर कूलिंग फैन जाम होने के लिए मेंटेनेंस टिकट बनाएं।" }
+        { label: "क्षतिग्रस्त कार्टन विश्लेषण", query: "वॉक्सलेंस, इस क्षतिग्रस्त कार्टन के लिए डायग्नोसिस और अनुशंसित वर्कफ़्लो क्या है?" },
+        { label: "पहले क्या जांचें?", query: "इस डिफेक्ट के लिए तत्काल सुरक्षा और रोकथाम के क्या चरण हैं?" },
+        { label: "ग्रिपर व ट्रांसफर चेक", query: "रोबोट ग्रिपर प्रेशर और कन्वेयर ट्रांसफर अलाइनमेंट का निरीक्षण कैसे करें?" },
+        { label: "स्टैक लाइट अलार्म चेक", query: "बिना फॉल्ट कोड का अनुमान लगाए रेड स्टैक लाइट अलार्म का सत्यापन कैसे करें?" }
       ],
       responseE17Mean: "एरर E17 मोटर थर्मल ओवरलोड का संकेत है, जो कूलिंग एयरफ्लो रुकने के कारण होता है। सुरक्षित सीमा 75.0°C है; वर्तमान तापमान 88.4°C है।",
-      responseCheckFirst: "सर्विस मैन्युअल सेक्शन 4.3 (पेज 42) के अनुसार, सबसे पहले एक्सियल कूलिंग फैन श्राउड की सफाई जांचें और टर्मिनल ब्लॉक TB-2 कनेक्शन देखें।",
+      responseCheckFirst: "एसओपी 6.2 और सुरक्षा मानक LOTO-2.1 के अनुसार, सबसे पहले Disconnect-3A से पावर आइसोलेट करें और क्षतिग्रस्त कार्टन को अलग करें।",
       responseCheckFan: "इन्वेंट्री जांच पूर्ण: बे 4 के स्टॉक Bin C-14 में पार्ट #VX-CF42 (कूलिंग फैन, $245.00) की 3 यूनिट्स उपलब्ध हैं।",
-      responseCreateTicket: "मैंने लाइन 3 के लिए वर्क ऑर्डर #TCK-2026-881 तैयार कर दिया है। पार्ट मंगाने में $245.00 का खर्च है, इसलिए आपके अनुमोदन (Safety Gate) की आवश्यकता है।",
-      responseScanDetected: "ऑप्टिकल विज़न स्कैन सफल: एरर कोड E17 (96% सटीकता) और स्टेटर थर्मल हॉटस्पॉट 88.4°C दर्ज किया गया।"
+      responseCreateTicket: "मैंने लाइन 3 पैकेजिंग के लिए वर्क ऑर्डर #TCK-2026-881 तैयार कर दिया है। तकनीशियन चेकलिस्ट सत्यापन की प्रतीक्षा है।",
+      responseScanDetected: "ऑप्टिकल विज़न स्कैन सफल: क्षतिग्रस्त कार्टन और सक्रिय रेड स्टैक लाइट की पहचान की गई।",
+      responseCartonHelp: "Image mein conveyor belt par ek cardboard carton buri tarah damage hua dikh raha hai. Sabse pehle affected carton ko production line se safely isolate karein. Iske baad robotic gripper, conveyor transfer points aur carton packaging quality inspect karein. Red warning light ka exact alarm HMI ya PLC se verify karna zaroori hai. Root cause confirm hone ke baad authorized technician corrective action le aur controlled test run kare."
     },
     safetyGate: {
       title: 'मानवीय अनुमोदन आवश्यक है',
@@ -865,5 +871,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDict> = {
 };
 
 export function getTranslation(lang: SupportedLanguage = 'en'): TranslationDict {
-  return TRANSLATIONS[lang] || TRANSLATIONS.en;
+  const selected = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  return {
+    ...TRANSLATIONS.en,
+    ...selected,
+    copilot: {
+      ...TRANSLATIONS.en.copilot,
+      ...(selected.copilot || {})
+    }
+  };
 }

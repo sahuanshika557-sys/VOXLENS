@@ -1,67 +1,69 @@
 import React from 'react';
-import { Eye, BookOpen, BrainCircuit, Wrench, FileCheck, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Eye, BookOpen, BrainCircuit, Wrench, ArrowRight, AlertCircle, HelpCircle } from 'lucide-react';
 import { AIDecisionSummary } from '../../types';
 
 interface AIReasoningTimelineProps {
   decisionSummary?: AIDecisionSummary;
   onOpenKnowledge?: () => void;
   onOpenSafetyModal?: () => void;
+  onOpenWorkflow?: () => void;
 }
 
 export const AIReasoningTimeline: React.FC<AIReasoningTimelineProps> = ({
   decisionSummary,
   onOpenKnowledge,
-  onOpenSafetyModal
+  onOpenSafetyModal,
+  onOpenWorkflow
 }) => {
   const steps = [
     {
       stepNumber: '01',
-      title: 'OBSERVED',
-      desc: 'E17 fault code detected on 7-segment readout + 88.4°C thermal anomaly',
-      meta: 'CV Optical Confidence: 96%',
+      title: 'VISUAL OBSERVATION',
+      desc: 'Severely crushed & torn carton detected on conveyor belt + Red tower stack light active.',
+      meta: 'Visual Assessment · High Severity',
       icon: Eye,
       color: 'text-red-400',
       bg: 'bg-red-500/10 border-red-500/30'
     },
     {
       stepNumber: '02',
-      title: 'KNOWLEDGE USED',
-      desc: 'VX-420 Service Manual Rev 4.2B, Section 4.3 (Page 42)',
-      meta: 'Vector Match: 96% Dense Embeddings',
+      title: 'GROUNDED KNOWLEDGE',
+      desc: 'Material Handling SOP Section 6.2 (Packaging Integrity) & LOTO Protocol Section 2.1',
+      meta: 'SOP Document Match: 98%',
       icon: BookOpen,
       color: 'text-[#00E5FF]',
       bg: 'bg-[#00E5FF]/10 border-[#00E5FF]/30',
       action: onOpenKnowledge,
-      actionText: 'View §4.3'
+      actionText: 'View SOP §6.2'
     },
     {
       stepNumber: '03',
-      title: 'REASONING',
-      desc: 'Thermal overload + airflow anomaly (1.2 L/min) confirms stator cooling stall',
-      meta: 'Tri-Modal Synthesis Correlated',
+      title: 'HYPOTHESIS FORMULATION',
+      desc: 'Formulated 5 distinct root cause possibilities (Robotic gripper force, alignment, conveyor transfer, fluting strength, jam collision).',
+      meta: '5 Unconfirmed Hypotheses',
       icon: BrainCircuit,
       color: 'text-purple-400',
       bg: 'bg-purple-500/10 border-purple-500/30'
     },
     {
       stepNumber: '04',
-      title: 'RECOMMENDATION',
-      desc: 'Inspect axial cooling fan impeller for particulate binding & verify TB-2 torque',
-      meta: 'LOTO SW-1 Lockout Required',
-      icon: Wrench,
-      color: 'text-emerald-400',
-      bg: 'bg-emerald-500/10 border-emerald-500/30'
+      title: 'ALARM VERIFICATION GATE',
+      desc: 'Check actual HMI / PLC error register to confirm stack light reason. Do not invent fault codes.',
+      meta: 'Physical Verification Mandate',
+      icon: AlertCircle,
+      color: 'text-amber-400',
+      bg: 'bg-amber-500/10 border-amber-500/30'
     },
     {
       stepNumber: '05',
-      title: 'NEXT ACTION',
-      desc: 'Requisition Part #VX-CF42 ($245.00) and dispatch Ticket #TCK-2026-881',
-      meta: 'Awaiting Human Authorization',
-      icon: FileCheck,
-      color: 'text-amber-400',
-      bg: 'bg-amber-500/10 border-amber-500/30',
-      action: onOpenSafetyModal,
-      actionText: 'Authorize ($245)'
+      title: 'GUIDED 8-STEP WORKFLOW',
+      desc: 'Execute structured containment, mechanical check, packaging QA inspection, and controlled test run.',
+      meta: 'Step-by-Step Operator Flow',
+      icon: Wrench,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500/10 border-emerald-500/30',
+      action: onOpenWorkflow,
+      actionText: 'Launch 8-Step Workflow'
     }
   ];
 
@@ -78,14 +80,14 @@ export const AIReasoningTimeline: React.FC<AIReasoningTimelineProps> = ({
               REASONING ENGINE
             </div>
             <h3 className="text-xl font-bold text-white tracking-wide">
-              AI DECISION TIMELINE
+              GROUNDED DIAGNOSTIC TIMELINE
             </h3>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>94% CONFIDENCE</span>
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono font-bold">
+          <HelpCircle className="w-3.5 h-3.5" />
+          <span>Verification Required</span>
         </div>
       </div>
 
@@ -117,11 +119,7 @@ export const AIReasoningTimeline: React.FC<AIReasoningTimelineProps> = ({
                 {step.action && (
                   <button
                     onClick={step.action}
-                    className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                      step.title === 'NEXT ACTION'
-                        ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
-                        : 'bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 text-[#00E5FF] border border-[#00E5FF]/30'
-                    }`}
+                    className="mt-2 px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 text-[#00E5FF] border border-[#00E5FF]/30"
                   >
                     <span>{step.actionText}</span>
                     <ArrowRight className="w-3 h-3" />

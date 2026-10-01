@@ -30,7 +30,9 @@ import {
   SessionMemoryItem, 
   TriedAction, 
   MaintenanceTicket,
-  InventoryItem
+  InventoryItem,
+  RepairWorkflowStep,
+  RootCauseHypothesis
 } from './types';
 
 import { 
@@ -41,8 +43,17 @@ import {
   INVENTORY_PARTS 
 } from './data/mockData';
 
+import { 
+  visionService, 
+  knowledgeService, 
+  inventoryService, 
+  ticketService,
+  INITIAL_8_STEP_REPAIR_WORKFLOW,
+  INITIAL_PACKAGING_HYPOTHESES,
+  PACKAGING_DEFECT_MANUAL_CITATIONS
+} from './services';
+
 import { soundEngine } from './utils/soundEngine';
-import { visionService, knowledgeService, inventoryService, ticketService } from './services';
 
 export function App() {
   // Multilingual & Boot State
@@ -52,7 +63,7 @@ export function App() {
   // Navigation & Role State
   const [activeTab, setActiveTab] = useState<NavigationTab>('live-repair');
   const [currentRole, setCurrentRole] = useState<UserRole>('technician');
-  const [currentScenario, setCurrentScenario] = useState<string>('e17-cooling');
+  const [currentScenario, setCurrentScenario] = useState<string>('packaging-defect');
 
   // Active Equipment
   const [activeEquipment, setActiveEquipment] = useState<Equipment>(DEMO_EQUIPMENT[0]);
@@ -71,7 +82,11 @@ export function App() {
   const [safetyGate, setSafetyGate] = useState<SafetyGateRequest | null>(INITIAL_SAFETY_GATE);
 
   // Knowledge Selected Citation
-  const [selectedCitation, setSelectedCitation] = useState<ManualCitation | null>(INITIAL_CITATIONS[0]);
+  const [selectedCitation, setSelectedCitation] = useState<ManualCitation | null>(PACKAGING_DEFECT_MANUAL_CITATIONS[0]);
+
+  // 8-Step Interactive Repair Workflow & Hypothesis State
+  const [workflowSteps, setWorkflowSteps] = useState<RepairWorkflowStep[]>(INITIAL_8_STEP_REPAIR_WORKFLOW);
+  const [hypotheses, setHypotheses] = useState<RootCauseHypothesis[]>(INITIAL_PACKAGING_HYPOTHESES);
 
   // Tickets & Inventory State
   const [tickets, setTickets] = useState<MaintenanceTicket[]>(INITIAL_TICKETS);
@@ -102,24 +117,24 @@ export function App() {
       id: 'mem-1',
       time: '10:31',
       iconType: 'scan',
-      label: 'Error E17 Detected',
-      detail: 'Optical CV OCR detected 7-segment display reading E17 with 96% visual confidence.',
+      label: 'Packaging Defect Detected',
+      detail: 'Optical vision pipeline detected severely crushed & torn cardboard carton on Line 3 conveyor.',
       status: 'warning'
     },
     {
       id: 'mem-2',
       time: '10:32',
       iconType: 'scan',
-      label: 'Equipment Identified',
-      detail: 'Model VX-420 Packaging Unit (S/N DEMO-420-0192) recognized in Assembly Sector 4.',
+      label: 'Red Tower Light Identified',
+      detail: 'Red stack light status active — requiring physical HMI/PLC error buffer register verification.',
       status: 'info'
     },
     {
       id: 'mem-3',
       time: '10:33',
       iconType: 'knowledge',
-      label: 'OEM Manual Retrieved',
-      detail: 'Rev 4.2B, Section 4.3 (Page 42) retrieved via semantic dense vector index.',
+      label: 'Packaging SOP & LOTO Retrieved',
+      detail: 'Packaging SOP Section 6.2 and Plant LOTO Section 2.1 loaded via dense semantic index.',
       status: 'success'
     }
   ]);
@@ -128,17 +143,17 @@ export function App() {
   const [triedActions, setTriedActions] = useState<TriedAction[]>([
     {
       id: 'try-1',
-      step: 'Air Intake Shroud Inspection',
+      step: 'Production Stream Quarantine',
       timeChecked: '10:33',
-      outcome: 'Failed - Anomaly Found',
-      notes: 'Intake flow constrained at 1.2 L/min (Nominal >= 4.5 L/min). Particulate drag observed.'
+      outcome: 'Passed',
+      notes: 'Damaged carton isolated. Upstream cartons visually verified intact.'
     },
     {
       id: 'try-2',
-      step: 'PT100 RTD Sensor Resistance',
+      step: 'Robotic Gripper Clearance Check',
       timeChecked: '10:34',
-      outcome: 'Passed',
-      notes: '133.5Ω measured across leads. Sensor calibration within ±0.2% tolerance.'
+      outcome: 'Pending Verification',
+      notes: 'LOTO SW-1 applied. Physical vacuum cup and transfer plate inspection in progress.'
     }
   ]);
 
@@ -146,46 +161,46 @@ export function App() {
   const [planSteps, setPlanSteps] = useState<AgentPlanStep[]>([
     {
       id: 1,
-      title: 'Identify Equipment',
-      description: 'Optical nameplate OCR & SCADA bus matching',
+      title: 'Inspect Visual Frame',
+      description: 'Multimodal vision detection on packaging line',
       status: 'COMPLETED',
       requiresApproval: false,
-      resultSummary: 'Verified: VX-420 Packaging Unit (Line 3)'
+      resultSummary: 'Observed: Crushed Carton + Red Stack Light'
     },
     {
       id: 2,
-      title: 'Read Error Code',
-      description: 'Computer vision 7-segment OCR',
+      title: 'Identify Defect Category',
+      description: 'Packaging integrity & carton damage',
       status: 'COMPLETED',
       requiresApproval: false,
-      resultSummary: 'Detected: E17 (96% Confidence)'
+      resultSummary: 'Severity: High (Structural Damage)'
     },
     {
       id: 3,
-      title: 'Retrieve Manual Evidence',
-      description: 'Dense vector search on OEM service manuals',
+      title: 'Retrieve SOP Evidence',
+      description: 'Dense search on Packaging SOP & LOTO protocols',
       status: 'COMPLETED',
       requiresApproval: false,
-      resultSummary: 'Section 4.3 (Page 42) Loaded'
+      resultSummary: 'Loaded: SOP Section 6.2 & LOTO Section 2.1'
     },
     {
       id: 4,
-      title: 'Recommend Diagnostic Step',
-      description: 'Guide technician through cooling path inspection',
+      title: 'Guide 8-Step Repair Workflow',
+      description: 'Safety, containment, mechanical, QA, and alarm check',
       status: 'IN_PROGRESS',
       requiresApproval: false
     },
     {
       id: 5,
-      title: 'Create Maintenance Ticket',
-      description: 'Draft CMMS high-priority work order',
+      title: 'HMI Alarm Code Verification',
+      description: 'Verify red stack light code in PLC fault buffer',
       status: 'LOCKED_APPROVAL',
-      requiresApproval: true
+      requiresApproval: false
     },
     {
       id: 6,
-      title: 'Request Replacement Part',
-      description: 'Requisition Part #VX-CF42 ($245.00) from Bay 4',
+      title: 'Controlled Test Run & Sign-Off',
+      description: 'Authorize test cartons & operator sign-off',
       status: 'LOCKED_APPROVAL',
       requiresApproval: true
     }
@@ -194,38 +209,114 @@ export function App() {
   // AI Decision Summary
   const [decisionSummary, setDecisionSummary] = useState<AIDecisionSummary>({
     observed: [
-      'Error code E17 detected on 7-segment display (96% certainty)',
-      'Equipment identified: VX-420 Packaging Unit (Line 3)',
-      'Motor stator telemetry abnormal: 88.4°C (Safe limit: 75.0°C)',
-      'Cooling airflow restricted: 1.2 L/min (Req: 3.8+ L/min)'
+      'Visibly crushed and torn cardboard carton on conveyor belt',
+      'Multiple intact packaging cartons moving along line',
+      'Red illuminated tower warning stack light active',
+      'Industrial robotic arm & conveyor transfer plate present'
     ],
     knowledgeUsed: [
-      'VX-420 Service Manual Rev 4.2B',
-      'Section 4.3: Motor & Cooling Diagnostics (Page 42)',
-      'Section 7.1: LOTO Isolation Procedures'
+      'Line 3 Material Handling & Robotic SOP Section 6.2',
+      'Plant Hazardous Energy Isolation (LOTO) Section 2.1',
+      'Packaging Cell Tower Light Annex Section 3.4'
     ],
-    recommendation: 'Inspect axial cooling fan shroud for particulate binding and verify Terminal Block TB-2 connections. If impeller drag persists, replace fan assembly with Part #VX-CF42.',
-    confidence: 'High',
-    confidenceScore: 94,
-    nextAction: 'Guide technician through cooling-path inspection & authorize replacement fan.',
-    safetyRequirement: 'Lockout/Tagout (LOTO SW-1) required before casing disassembly.'
+    recommendation: 'Isolate damaged carton from production stream, apply LOTO SW-1, inspect robotic gripper suction cups & conveyor transfer alignment, and verify red stack light alarm on PLC/HMI log.',
+    confidence: 'Visual Assessment',
+    confidenceScore: 92,
+    nextAction: 'Follow 8-Step Guided Repair Workflow and document root-cause verification.',
+    safetyRequirement: 'Apply LOTO padlocks to Disconnect-3A before reaching into conveyor transfer zone or robotic gripper envelopes.'
   });
 
-  // Copilot Messages Stream
+  // Copilot Messages Stream with accurate initial message
   const [messages, setMessages] = useState<CopilotMessage[]>([
     {
       id: 'msg-init',
       sender: 'voxlens',
-      text: "Hello Alex. I am connected to the Line 3 VX-420 Packaging Unit (#VX-2048). I am monitoring live optical feeds, telemetry sensors, and technical service manuals.\n\nYou can speak naturally or point your camera at any component or error display.",
+      text: "The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action.",
       timestamp: '10:30:12',
-      citations: [INITIAL_CITATIONS[0]],
+      citations: [PACKAGING_DEFECT_MANUAL_CITATIONS[0]],
       suggestedPrompts: [
-        'What does error E17 mean?',
+        'Explain carton defect',
         'What should I check first?',
-        'Create a maintenance ticket'
+        'Red stack light meaning?',
+        '8-step repair workflow'
       ]
     }
   ]);
+
+  // 8-Step Workflow Interaction Handlers
+  const handleToggleWorkflowStep = (stepId: number) => {
+    setWorkflowSteps(prev => prev.map(s => {
+      if (s.id === stepId) {
+        const nextState = !s.isCompleted;
+        if (nextState) {
+          soundEngine.playSuccess();
+          addToast(`Step ${s.stepNumber} Completed`, s.shortLabel, 'success');
+        }
+        return {
+          ...s,
+          isCompleted: nextState,
+          completedAt: nextState ? new Date().toLocaleTimeString() : undefined
+        };
+      }
+      return s;
+    }));
+  };
+
+  const handleUpdateStepNotes = (stepId: number, notes: string) => {
+    setWorkflowSteps(prev => prev.map(s => s.id === stepId ? { ...s, technicianNotes: notes } : s));
+  };
+
+  const handleUpdateHypothesisStatus = (hypoId: string, status: RootCauseHypothesis['status']) => {
+    setHypotheses(prev => prev.map(h => {
+      if (h.id === hypoId) {
+        soundEngine.playMicOn();
+        addToast(`Hypothesis Updated`, `${h.title}: ${status}`, 'info');
+        return { ...h, status };
+      }
+      return h;
+    }));
+  };
+
+  const handleAttachEvidence = (stepId: number, url: string) => {
+    setWorkflowSteps(prev => prev.map(s => {
+      if (s.id === stepId) {
+        const existing = s.evidenceUrls || [];
+        return { ...s, evidenceUrls: [...existing, url] };
+      }
+      return s;
+    }));
+    soundEngine.playSuccess();
+    addToast('Evidence Attached', 'Photo inspection note logged to step record.', 'success');
+  };
+
+  const handleSignoffWorkflow = (notes: string) => {
+    soundEngine.playSuccess();
+    setWorkflowSteps(prev => prev.map(s => s.id === 8 ? {
+      ...s,
+      isCompleted: true,
+      technicianNotes: notes,
+      completedAt: new Date().toLocaleTimeString()
+    } : s));
+
+    const newMem: SessionMemoryItem = {
+      id: `mem-signoff-${Date.now()}`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      iconType: 'approval',
+      label: 'Packaging Case Resolved & Signed Off',
+      detail: `Operator verification complete: ${notes}`,
+      status: 'success'
+    };
+    setMemoryItems(prev => [...prev, newMem]);
+
+    addToast('Case Resolved', 'Qualified operator verified corrective action & acceptance criteria.', 'success');
+    soundEngine.speak("Case resolved and signed off. Corrective action verified on Line 3.");
+  };
+
+  const handleReopenWorkflow = () => {
+    soundEngine.playAlert();
+    setWorkflowSteps(prev => prev.map(s => s.id === 8 ? { ...s, isCompleted: false } : s));
+    addToast('Case Reopened', 'Investigation returned to active troubleshooting.', 'warning');
+  };
 
   // Handle Language Switch across the entire application
   const handleSelectLanguage = (newLang: LanguageCode) => {
@@ -233,33 +324,32 @@ export function App() {
     const t = getTranslation(newLang);
     const langMeta = SUPPORTED_LANGUAGES.find(l => l.code === newLang);
 
-    // Update greeting / diagnostic message immediately to the chosen language
+    // Provide localized packaging diagnostic message
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const localizedMsg = newLang === 'hi'
+      ? 'Image mein conveyor belt par ek cardboard carton buri tarah damage hua dikh raha hai. Sabse pehle affected carton ko production line se safely isolate karein. Iske baad robotic gripper, conveyor transfer points aur carton packaging quality inspect karein. Red warning light ka exact alarm HMI ya PLC se verify karna zaroori hai. Root cause confirm hone ke baad authorized technician corrective action le aur controlled test run kare.'
+      : 'The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action.';
+
     const localizedInitMsg: CopilotMessage = {
       id: `msg-lang-${Date.now()}`,
       sender: 'voxlens',
-      text: t.copilot?.e17Diagnosis || t.copilot?.greeting,
+      text: localizedMsg,
       timestamp: timeStr,
-      citations: [INITIAL_CITATIONS[0]],
-      suggestedPrompts: t.copilot?.quickPrompts?.map(qp => qp.label) || [
-        'What does error E17 mean?',
-        'What should I check first?',
-        'Create a maintenance ticket'
+      citations: [PACKAGING_DEFECT_MANUAL_CITATIONS[0]],
+      suggestedPrompts: [
+        newLang === 'hi' ? 'Carton defect explain karein' : 'Explain carton defect',
+        newLang === 'hi' ? 'Sabse pehle kya check karein?' : 'What should I check first?',
+        newLang === 'hi' ? 'Red stack light ka matlab?' : 'Red stack light meaning?',
+        newLang === 'hi' ? '8-step repair workflow' : '8-step repair workflow'
       ]
     };
     setMessages([localizedInitMsg]);
 
-    // Update Decision Summary Recommendation in active language
-    setDecisionSummary(prev => ({
-      ...prev,
-      recommendation: `${t.copilot?.recStep1 || ''} ${t.copilot?.recStep2 || ''}`
-    }));
-
-    addToast(`Language: ${langMeta?.nativeLabel || newLang.toUpperCase()}`, t.copilot?.greeting.split('\n')[0], 'info');
+    addToast(`Language: ${langMeta?.nativeLabel || newLang.toUpperCase()}`, localizedMsg.slice(0, 80) + '...', 'info');
 
     // Speak brief localized greeting
     soundEngine.speak(
-      t.copilot?.greeting.split('\n')[0] || 'Language updated.',
+      newLang === 'hi' ? 'VOXLENS हिंदी मोड सक्रिय है। कार्टन डैमेज जांच तैयार है।' : 'VoxLens language updated. Ready for packaging defect inspection.',
       langMeta?.speechLocale || 'en-US'
     );
   };
@@ -269,63 +359,36 @@ export function App() {
     setCurrentScenario(scenarioId);
     soundEngine.playMicOn();
 
-    if (scenarioId === 'low-confidence') {
+    if (scenarioId === 'packaging-defect') {
       const msg: CopilotMessage = {
         id: `scen-${Date.now()}`,
         sender: 'voxlens',
-        text: "⚠ Low Visual Confidence (62%): The camera angle is partially obstructed by the secondary conveyor guard. Please adjust your camera angle or confirm the 7-segment LED reading manually.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        text: currentLanguage === 'hi'
+          ? "Image mein conveyor belt par ek cardboard carton buri tarah damage hua dikh raha hai. Sabse pehle affected carton ko production line se safely isolate karein. Iske baad robotic gripper, conveyor transfer points aur carton packaging quality inspect karein. Red warning light ka exact alarm HMI ya PLC se verify karna zaroori hai. Root cause confirm hone ke baad authorized technician corrective action le aur controlled test run kare."
+          : "The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        citations: [PACKAGING_DEFECT_MANUAL_CITATIONS[0]]
       };
-      setMessages(prev => [...prev, msg]);
-      addToast('Low Visual Confidence', 'Conveyor guard is partially obscuring LED display.', 'warning');
-      soundEngine.speak("Low visual confidence. Please adjust camera angle.");
-    } else if (scenarioId === 'camera-blocked') {
+      setMessages([msg]);
+      addToast('Packaging Defect Scenario', 'Crushed carton & red stack light test case loaded.', 'info');
+    } else if (scenarioId === 'low-confidence') {
       const msg: CopilotMessage = {
         id: `scen-${Date.now()}`,
         sender: 'voxlens',
-        text: "⚠ Optical Feed Obscured: Lens flare / particulate contamination detected on sensor. Reverting to telemetry and voice assistant mode.",
+        text: "⚠ Low Visual Confidence: The conveyor transfer angle is partially obscured by structural glare. Please upload a clear orthogonal photo or inspect the gripper fingers directly.",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, msg]);
-      addToast('Camera Obscured', 'Operating on SCADA telemetry and voice assistant.', 'warning');
-      soundEngine.speak("Optical sensor obscured. Operating on telemetry.");
-    } else if (scenarioId === 'manual-missing') {
-      const msg: CopilotMessage = {
-        id: `scen-${Date.now()}`,
-        sender: 'voxlens',
-        text: "ℹ OEM Manual Notice: No specific Rev 4.2 section found for auxiliary sub-assembly. Falling back to generalized industrial motor standards (IEC 60034-1). Recommend supervisor sign-off.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, msg]);
-      addToast('Fallback Standards', 'Loaded IEC 60034-1 motor standards.', 'info');
-    } else if (scenarioId === 'zero-inventory') {
-      const msg: CopilotMessage = {
-        id: `scen-${Date.now()}`,
-        sender: 'voxlens',
-        text: "⚠ Inventory Zero-Stock Alert: Part #VX-CF42 is out of stock in Bay 4. Lead time from Dallas Regional Vault is 2 business days. Expedited courier dispatch proposed.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, msg]);
-      addToast('Inventory Zero Stock', 'Part #VX-CF42 unavailable in Bay 4 stockroom.', 'warning');
-      soundEngine.speak("Replacement fan out of stock in Bay 4. Expedited courier required.");
-    } else if (scenarioId === 'network-degraded') {
-      const msg: CopilotMessage = {
-        id: `scen-${Date.now()}`,
-        sender: 'voxlens',
-        text: "⚡ Offline Edge Mode Active: 5G signal degraded. Operating on cached local on-device SLM weights and local vector store. Full repair capabilities retained.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, msg]);
-      addToast('Offline Edge Mode Active', 'Operating on local cached SLM weights.', 'info');
+      addToast('Low Visual Confidence', 'Conveyor guard is partially obscuring view.', 'warning');
     } else {
       const msg: CopilotMessage = {
         id: `scen-${Date.now()}`,
         sender: 'voxlens',
-        text: "✓ Connected to primary Line 3 packaging line. Ready for E17 fault diagnosis.",
+        text: "✓ Connected to primary Line 3 packaging line. Ready for fault diagnosis.",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, msg]);
-      addToast('Connected to Line 3', 'Ready for E17 fault diagnosis.', 'success');
+      addToast('Connected to Line 3', 'Ready for packaging diagnosis.', 'success');
     }
   };
 
@@ -346,37 +409,38 @@ export function App() {
   const handleTriggerScan = () => {
     setIsScanning(true);
     soundEngine.playScanPing();
-    const t = getTranslation(currentLanguage);
     const langMeta = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage);
 
-    addToast(t.liveRepair?.visionTitle || 'Scanning Equipment', 'Optical CV OCR & thermal sensor analyzing frame...', 'info');
+    addToast('Scanning Image', 'Analyzing visible objects, carton damage, and stack light...', 'info');
 
     setTimeout(() => {
       setIsScanning(false);
       soundEngine.playScanPing();
-      addToast('Equipment Identified', 'VX-420 Unit identified · Error E17 (96% Confidence)', 'success');
+      addToast('Defect Identified', 'Crushed & torn carton on conveyor · Red stack light active', 'warning');
 
-      // Add localized scan diagnosis
+      const responseText = currentLanguage === 'hi'
+        ? 'Image analysis verified: Conveyor belt par crushed & torn carton mila hai. Red stack light active hai lekin iska alarm code PLC/HMI log se check karna mandatory hai.'
+        : 'Image analysis verified: Severely crushed and torn cardboard carton observed on conveyor. Red stack light active — alarm meaning undetermined pending PLC/HMI verification.';
+
       const botMsg: CopilotMessage = {
         id: `scan-msg-${Date.now()}`,
         sender: 'voxlens',
-        text: t.copilot?.responseScanDetected || "Optical CV scan verified: Error Code E17 (96% confidence) and Stator Thermal Hotspot at 88.4°C.",
+        text: responseText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        citations: INITIAL_CITATIONS
+        citations: PACKAGING_DEFECT_MANUAL_CITATIONS
       };
       setMessages(prev => [...prev, botMsg]);
 
       soundEngine.speak(
-        (t.copilot?.responseScanDetected || "Optical scan complete.").slice(0, 200),
+        responseText.slice(0, 200),
         langMeta?.speechLocale || 'en-US'
       );
     }, 1200);
   };
 
-  // Dispatch AI Copilot Response (Multilingual Aware)
+  // Dispatch AI Copilot Response (Multilingual Aware & Grounded)
   const handleSendMessage = (userText: string, intent?: string) => {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const t = getTranslation(currentLanguage);
     const langMeta = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage);
     
     // Add user message
@@ -391,67 +455,49 @@ export function App() {
     setIsProcessing(true);
     setVoiceState('PROCESSING');
 
-    // Simulate Agentic Multimodal Reasoning & RAG retrieval
     setTimeout(() => {
       const lower = userText.toLowerCase();
       let replyText = "";
-      let citations = INITIAL_CITATIONS;
+      let citations = PACKAGING_DEFECT_MANUAL_CITATIONS;
       let toolCalls: any[] = [];
       let actionCard: any = undefined;
 
-      if (lower.includes('ticket') || lower.includes('create ticket') || lower.includes('टिकट') || lower.includes('টিকিট') || lower.includes('டிக்கெட்') || lower.includes('టికెట్') || lower.includes('ٹکٹ')) {
-        replyText = t.copilot?.responseCreateTicket || "I have prepared Work Order #TCK-2026-881 for Line 3. Human authorization is required for $245.00 part requisition.";
-        toolCalls = [
-          {
-            id: 'tc-draft',
-            toolName: 'draft_cmms_ticket',
-            arguments: { equipmentId: 'eq-vx420', priority: 'High', errorCode: 'E17' },
-            status: 'WAITING_APPROVAL',
-            timestamp: timeStr
-          }
-        ];
+      // Handle Red Warning Light query
+      if (lower.includes('light') || lower.includes('stack') || lower.includes('red') || lower.includes('लाल') || lower.includes('लाइट')) {
+        replyText = currentLanguage === 'hi'
+          ? 'Red tower warning light active dikh rahi hai. Important: Red light se koi specific alarm code ya sensor reading infer mat karein. Iska exact fault code HMI screen ya PLC alarm history se verify karna zaroori hai.'
+          : 'A red illuminated tower warning light is visible in the background. Important: The exact alarm code cannot be determined from the light color alone. Verify the active alarm code directly from the HMI screen or PLC fault buffer.';
+        soundEngine.playAlert();
+        addToast('Alarm Verification Gate', 'Verify red stack light code in PLC/HMI log.', 'warning');
+      }
+      // Handle "What should I check first" query
+      else if (lower.includes('first') || lower.includes('check first') || lower.includes('पहले') || lower.includes('step 1') || lower.includes('शुरू')) {
+        replyText = currentLanguage === 'hi'
+          ? 'STEP 1 — SAFETY: Sabse pehle machine ko isolate karein aur LOTO SW-1 apply karein. Uske baad STEP 2: Damaged carton ko production stream se hatayein aur aas-paas ke cartons inspect karein.'
+          : 'STEP 1 — SAFETY: First stop and isolate the affected equipment and apply Lockout/Tagout (LOTO SW-1). Next, STEP 2 — CONTAINMENT: Isolate the damaged carton from the production stream and inspect adjacent cartons.';
+        soundEngine.playMicOn();
+        addToast('Safety & Containment', 'SOP Section 6.2 & LOTO Section 2.1', 'info');
+      }
+      // Handle ticket / CMMS request
+      else if (lower.includes('ticket') || lower.includes('create ticket') || lower.includes('टिकट')) {
+        replyText = currentLanguage === 'hi'
+          ? 'Maine Line 3 packaging cell ke liye Maintenance Ticket #TCK-2026-881 draft kar diya hai. LOTO SW-1 isolation aur replacement vacuum suction cups ke liye human sign-off zaroori hai.'
+          : 'I have drafted Maintenance Ticket #TCK-2026-881 for Line 3 packaging cell. Human sign-off is required for LOTO SW-1 isolation and part requisition.';
         actionCard = {
           type: 'approval_request',
           payload: {
-            title: `${t.safetyGate?.title || 'Authorize Part #VX-CF42 ($245.00)'} & Log Ticket #TCK-2026-881`
+            title: 'Authorize Gripper Cup Kit ($245.00) & Log Ticket #TCK-2026-881'
           }
         };
         soundEngine.playAlert();
-        addToast(t.safetyGate?.title || 'Human Approval Required', t.safetyGate?.subtitle || 'Financial allocation requires technician sign-off.', 'approval');
-      } else if (lower.includes('inventory') || lower.includes('part') || lower.includes('fan') || lower.includes('स्टॉक') || lower.includes('फैन') || lower.includes('ফ্যান') || lower.includes('ఫ్యాన్') || lower.includes('ஃபேன்')) {
-        replyText = t.copilot?.responseCheckFan || "Inventory search complete: Bay 4 Stockroom has 3 units of Part #VX-CF42 ($245.00) in Bin C-14.";
-        toolCalls = [
-          {
-            id: 'tc-inv',
-            toolName: 'query_bay_inventory',
-            arguments: { partNumber: 'VX-CF42', location: 'Bay 4' },
-            status: 'COMPLETED',
-            timestamp: timeStr
-          }
-        ];
-        soundEngine.playSuccess();
-        addToast(t.liveRepair?.knowledgeTitle || 'Inventory Queried', 'Part #VX-CF42: 3 units in Bay 4 Stockroom (Bin C-14).', 'success');
-      } else if (lower.includes('first') || lower.includes('check first') || lower.includes('पहले') || lower.includes('முதலில்') || lower.includes('ಮೊದಲು') || lower.includes('پہلے')) {
-        replyText = t.copilot?.responseCheckFirst || "Per Service Manual Section 4.3 (Page 42), first inspect the axial cooling fan shroud for particulate obstruction, then verify Terminal Block TB-2 connections.";
+        addToast('Human Approval Required', 'Financial & LOTO authorization required.', 'approval');
+      }
+      // Default: Comprehensive packaging defect diagnosis
+      else {
+        replyText = currentLanguage === 'hi'
+          ? 'Image mein conveyor belt par ek cardboard carton buri tarah damage hua dikh raha hai. Sabse pehle affected carton ko production line se safely isolate karein. Iske baad robotic gripper, conveyor transfer points aur carton packaging quality inspect karein. Red warning light ka exact alarm HMI ya PLC se verify karna zaroori hai. Root cause confirm hone ke baad authorized technician corrective action le aur controlled test run kare.'
+          : 'The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action.';
         soundEngine.playMicOn();
-        addToast(t.copilot?.recTitle || 'Recommended Steps', 'Section 4.3 (Page 42)', 'info');
-      } else if (lower.includes('mean') || lower.includes('मतलब') || lower.includes('అర్థం') || lower.includes('பொருள்') || lower.includes('معنی')) {
-        replyText = t.copilot?.responseE17Mean || "Error E17 indicates a Motor Thermal Overload caused by constrained cooling airflow across the stator housing.";
-        soundEngine.playMicOn();
-      } else {
-        // Standard E17 query / what should I check
-        replyText = t.copilot?.e17Diagnosis || "I detected error E17 and identified the equipment as the Line 3 VX-420 motor-driven packaging unit.";
-        toolCalls = [
-          {
-            id: 'tc-scan',
-            toolName: 'search_technical_manual',
-            arguments: { query: 'E17 Motor Thermal Overload', model: 'VX-420' },
-            status: 'COMPLETED',
-            timestamp: timeStr
-          }
-        ];
-        soundEngine.playMicOn();
-        addToast(t.liveRepair?.synthesisTitle || 'Multimodal Context Unified', 'Voice + Vision + Manual §4.3', 'success');
       }
 
       const botMsg: CopilotMessage = {
@@ -468,91 +514,43 @@ export function App() {
       setIsProcessing(false);
       setVoiceState('RESPONDING');
 
-      // Speak response using Web Speech Synthesis in the exact locale!
+      // Speak response in the appropriate locale
       soundEngine.speak(
         replyText.slice(0, 240),
-        langMeta?.speechLocale || 'en-US',
+        langMeta?.speechLocale || (currentLanguage === 'hi' ? 'hi-IN' : 'en-US'),
         () => setVoiceState('RESPONDING'),
         () => setVoiceState('IDLE')
       );
-    }, 900);
+    }, 850);
   };
 
   // Handle Safety Gate Approval
   const handleApproveSafetyGate = (gateId: string) => {
     soundEngine.playSuccess();
-
-    // 1. Update Safety Gate
     setSafetyGate(prev => prev ? { ...prev, status: 'APPROVED', decidedAt: new Date().toLocaleTimeString() } : null);
 
-    // 2. Unlock plan steps 5 & 6
+    // Unlock plan steps
     setPlanSteps(prev => prev.map(s => {
-      if (s.id === 4 || s.id === 5 || s.id === 6) {
+      if (s.id === 5 || s.id === 6) {
         return {
           ...s,
           status: 'COMPLETED',
-          resultSummary: s.id === 5 ? 'Ticket #TCK-2026-881 Dispatched' : 'Part #VX-CF42 Requisitioned ($245.00)'
+          resultSummary: s.id === 5 ? 'HMI Alarm Verified in Log' : 'Test Run Approved & Controlled Run Passed'
         };
       }
       return s;
     }));
 
-    // 3. Add to Session Memory
-    const newMem: SessionMemoryItem = {
-      id: `mem-${Date.now()}`,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      iconType: 'approval',
-      label: 'Ticket #TCK-2026-881 Approved & Dispatched',
-      detail: 'Technician Alex Rivera signed off on Part #VX-CF42 ($245.00) requisition for Line 3 Bay B.',
-      status: 'success'
-    };
-    setMemoryItems(prev => [...prev, newMem]);
+    addToast('Action Authorized', 'LOTO Protocol & Ticket #TCK-2026-881 approved.', 'success');
 
-    // 4. Update Tickets list
-    setTickets(prev => prev.map(t => {
-      if (t.id === 'TCK-2026-881') {
-        return {
-          ...t,
-          status: 'IN_PROGRESS',
-          supervisorApproved: true
-        };
-      }
-      return t;
-    }));
-
-    // 5. Reserve part in inventory
-    setInventory(prev => prev.map(p => {
-      if (p.partNumber === 'VX-CF42' && p.inStock > 0) {
-        return {
-          ...p,
-          inStock: p.inStock - 1,
-          reserved: p.reserved + 1
-        };
-      }
-      return p;
-    }));
-
-    addToast('Action Authorized', 'Maintenance ticket #TCK-2026-881 dispatched and Part #VX-CF42 reserved in Bay 4.', 'success');
-
-    // 6. Add Bot confirmation message
     const botMsg: CopilotMessage = {
       id: `bot-approved-${Date.now()}`,
       sender: 'voxlens',
-      text: "✓ Action Authorized! Maintenance Ticket #TCK-2026-881 has been created in SAP PM and Part #VX-CF42 (Axial Fan) is reserved in Bay 4 Stockroom (Bin C-14). Session memory has been updated.",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      toolCalls: [
-        {
-          id: 'tc-auth',
-          toolName: 'commit_ticket_and_part_order',
-          arguments: { ticketId: 'TCK-2026-881', part: 'VX-CF42', amount: 245.00 },
-          status: 'COMPLETED',
-          timestamp: new Date().toLocaleTimeString()
-        }
-      ]
+      text: "✓ Action Authorized! Maintenance Ticket #TCK-2026-881 logged and gripper replacement kit reserved in Bay 4 Stockroom. 8-step repair workflow updated.",
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     setMessages(prev => [...prev, botMsg]);
-
-    soundEngine.speak("Action authorized. Maintenance ticket created and replacement part reserved.");
+    soundEngine.speak("Action authorized. Maintenance ticket created and repair steps unlocked.");
   };
 
   // Handle Safety Gate Rejection
@@ -560,14 +558,6 @@ export function App() {
     soundEngine.playAlert();
     setSafetyGate(prev => prev ? { ...prev, status: 'REJECTED', rejectionReason: reason } : null);
     addToast('Action Override', `Requisition cancelled: ${reason}`, 'warning');
-
-    const botMsg: CopilotMessage = {
-      id: `bot-rej-${Date.now()}`,
-      sender: 'voxlens',
-      text: `Action rejected: "${reason}". The ticket and part requisition have been cancelled. I will update session memory and adjust recommendations.`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setMessages(prev => [...prev, botMsg]);
   };
 
   // Toggle Tried Action Checkbox
@@ -603,20 +593,22 @@ export function App() {
   // Reset Session
   const handleResetSession = () => {
     soundEngine.playMicOn();
+    setWorkflowSteps(INITIAL_8_STEP_REPAIR_WORKFLOW);
+    setHypotheses(INITIAL_PACKAGING_HYPOTHESES);
     setMemoryItems([
       {
         id: 'mem-new',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         iconType: 'telemetry',
         label: 'New Session Initialized',
-        detail: 'Session context reset for Line 3 VX-420 Packaging Unit.',
+        detail: 'Session context reset for Line 3 Packaging Defect Inspection.',
         status: 'info'
       }
     ]);
     addToast('Session Reset', 'Context cleared for fresh repair session.', 'info');
   };
 
-  // Guided Demo Orchestrator (11-Step Multimodal Story Script)
+  // Guided Demo Orchestrator
   const handleStartDemo = () => {
     setIsDemoRunning(true);
     setActiveTab('live-repair');
@@ -631,9 +623,8 @@ export function App() {
     switch (stepNumber) {
       case 1:
         setActiveTab('live-repair');
-        setActiveEquipment(DEMO_EQUIPMENT[0]);
-        addToast('DEMO 01: Connected', 'Line 3 VX-420 Packaging Unit identified.', 'info');
-        soundEngine.speak("Starting live repair session on Line 3 packaging unit, model VX 420.");
+        addToast('DEMO 01: Packaging Image Analyzed', 'Crushed carton defect identified on conveyor.', 'info');
+        soundEngine.speak("Starting visual inspection on Line 3 packaging conveyor.");
         break;
 
       case 2:
@@ -642,23 +633,23 @@ export function App() {
         setVoiceState('LISTENING');
         addToast('DEMO 02: Voice Query', 'Technician speaking into microphone...', 'info');
         setTimeout(() => {
-          handleSendMessage("VoxLens, the machine is showing error E17. What should I check first?");
-        }, 1200);
+          handleSendMessage("Explain the visible carton damage on the conveyor");
+        }, 1000);
         break;
 
       case 3:
         handleTriggerScan();
-        addToast('DEMO 03: Vision Scan', 'E17 (96%) and 88.4°C thermal anomaly detected.', 'warning');
+        addToast('DEMO 03: Vision Scan', 'Crushed carton localized & red stack light noted.', 'warning');
         break;
 
       case 4:
-        addToast('DEMO 04: Multimodal Synthesis', 'Unified Voice + Vision + Knowledge into recommendation.', 'success');
+        addToast('DEMO 04: Grounded Inferences', 'Formulated 5 distinct root-cause hypotheses without hallucinating alarm codes.', 'success');
         break;
 
       case 5:
         setActiveTab('knowledge');
-        addToast('DEMO 05: RAG Search', 'Dense vector search matched Section 4.3 (Page 42) at 96% relevance.', 'info');
-        soundEngine.speak("Dense RAG retrieval matched service manual Section 4.3 on page 42 with 96% relevance.");
+        addToast('DEMO 05: SOP Evidence', 'Packaging SOP Section 6.2 & LOTO Section 2.1 loaded.', 'info');
+        soundEngine.speak("Loaded Packaging SOP Section 6.2 and Lockout Tagout procedures.");
         break;
 
       case 6:
@@ -666,38 +657,38 @@ export function App() {
         break;
 
       case 7:
-        setVoiceState('LISTENING');
-        addToast('DEMO 07: Action Request', 'Technician requests ticket preparation & fan check.', 'info');
-        setTimeout(() => {
-          handleSendMessage("Create a maintenance ticket and check replacement fan availability in Bay 4.");
-        }, 1000);
+        // Complete Step 1 (Safety) and Step 2 (Containment)
+        setWorkflowSteps(prev => prev.map(s => (s.id === 1 || s.id === 2) ? { ...s, isCompleted: true, completedAt: new Date().toLocaleTimeString() } : s));
+        addToast('DEMO 07: Safety & Containment Done', 'Step 1 (LOTO) & Step 2 (Quarantine) verified.', 'success');
         break;
 
       case 8:
-        // Agent prepares ticket & triggers safety gate
-        setPlanSteps(prev => prev.map(s => s.id === 5 || s.id === 6 ? { ...s, status: 'LOCKED_APPROVAL' } : s));
-        addToast('DEMO 08: Agent Tools', 'Inventory checked (3 fans in Bay 4) and ticket drafted.', 'info');
+        // Complete Step 3 (Mechanical) & Step 4 (Packaging Spec)
+        setWorkflowSteps(prev => prev.map(s => (s.id === 3 || s.id === 4 || s.id === 5) ? { ...s, isCompleted: true, completedAt: new Date().toLocaleTimeString() } : s));
+        addToast('DEMO 08: Mechanical & Alarm Checked', 'Gripper inspected & PLC alarm verified on HMI.', 'info');
         break;
 
       case 9:
         setIsSafetyModalOpen(true);
         soundEngine.playAlert();
-        addToast('DEMO 09: Safety Gate', 'Human approval required for financial commitment of $245.00.', 'approval');
-        soundEngine.speak("Safety gate engaged. Human approval is required for part requisition of $245.");
+        addToast('DEMO 09: Authorization Gate', 'Human sign-off required for controlled test run.', 'approval');
+        soundEngine.speak("Safety gate engaged. Human approval is required for controlled test run.");
         break;
 
       case 10:
         if (safetyGate) {
           handleApproveSafetyGate(safetyGate.id);
           setIsSafetyModalOpen(false);
-          addToast('DEMO 10: Authorized', 'Ticket #TCK-2026-881 created and Part #VX-CF42 reserved.', 'success');
+          setWorkflowSteps(prev => prev.map(s => (s.id === 6 || s.id === 7) ? { ...s, isCompleted: true, completedAt: new Date().toLocaleTimeString() } : s));
+          addToast('DEMO 10: Controlled Test Run Passed', '5 sample cartons processed with 0 defects.', 'success');
         }
         break;
 
       case 11:
+        handleSignoffWorkflow('Authorized by Senior Operator Alex Rivera. All 5 test cartons passed QA inspection.');
         setActiveTab('session-memory');
-        addToast('DEMO COMPLETE', 'Repair context synchronized to persistent session memory.', 'success');
-        soundEngine.speak("Repair context synchronized and saved to session memory. Demo complete.");
+        addToast('DEMO COMPLETE: Case Resolved', 'Verification complete and signed off.', 'success');
+        soundEngine.speak("Controlled test run successful. Case resolved and signed off. Demo complete.");
         break;
     }
   };
@@ -718,8 +709,8 @@ export function App() {
         onToggleSound={handleToggleSound}
         speechEnabled={speechEnabled}
         onToggleSpeech={handleToggleSpeech}
-        activeEquipmentName={activeEquipment.name}
-        activeErrorCode={activeEquipment.activeErrorCode}
+        activeEquipmentName="Line 3 Packaging Cell"
+        activeErrorCode="ACTIVE (VERIFY HMI)"
         pendingApprovalsCount={safetyGate && safetyGate.status === 'PENDING_APPROVAL' ? 1 : 0}
         onSelectScenario={handleSelectScenario}
         currentScenario={currentScenario}
@@ -740,7 +731,7 @@ export function App() {
           currentRole={currentRole}
           pendingApprovalsCount={safetyGate && safetyGate.status === 'PENDING_APPROVAL' ? 1 : 0}
           openTicketsCount={tickets.filter(t => t.status === 'OPEN' || t.status === 'REQUIRES_APPROVAL' || t.status === 'IN_PROGRESS').length}
-          activeEquipmentName={activeEquipment.model}
+          activeEquipmentName="Line 3 Packaging Unit"
           currentLanguage={currentLanguage}
         />
 
@@ -754,6 +745,14 @@ export function App() {
               planSteps={planSteps}
               decisionSummary={decisionSummary}
               safetyGate={safetyGate}
+              workflowSteps={workflowSteps}
+              hypotheses={hypotheses}
+              onToggleWorkflowStep={handleToggleWorkflowStep}
+              onUpdateStepNotes={handleUpdateStepNotes}
+              onUpdateHypothesisStatus={handleUpdateHypothesisStatus}
+              onAttachEvidence={handleAttachEvidence}
+              onSignoffWorkflow={handleSignoffWorkflow}
+              onReopenWorkflow={handleReopenWorkflow}
               onSendMessage={handleSendMessage}
               onSelectManualCitation={(cite) => {
                 setSelectedCitation(cite);
@@ -762,7 +761,7 @@ export function App() {
               onOpenSafetyModal={() => setIsSafetyModalOpen(true)}
               onOpenKnowledge={() => setActiveTab('knowledge')}
               onDetectFault={(code) => {
-                handleSendMessage(`I detected error code ${code} on the equipment. What is the diagnosis?`);
+                handleSendMessage(`I detected defect ${code} on the equipment. What is the grounded troubleshooting workflow?`);
               }}
               isScanning={isScanning}
               onTriggerScan={handleTriggerScan}

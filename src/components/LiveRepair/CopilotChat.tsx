@@ -12,10 +12,9 @@ import {
   ShieldCheck,
   BrainCircuit,
   MessageSquare,
-  Volume2,
   Square,
   RotateCcw,
-  Play
+  Wrench
 } from 'lucide-react';
 import { CopilotMessage, VoiceState, ManualCitation } from '../../types';
 import { AudioWaveform } from './AudioWaveform';
@@ -29,6 +28,7 @@ interface CopilotChatProps {
   onSendMessage: (text: string, intent?: string) => void;
   onSelectManualCitation: (citation: ManualCitation) => void;
   onRequestSafetyApproval: () => void;
+  onOpenWorkflow?: () => void;
   isProcessing: boolean;
   currentLanguage?: LanguageCode;
 }
@@ -39,6 +39,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
   onSendMessage,
   onSelectManualCitation,
   onRequestSafetyApproval,
+  onOpenWorkflow,
   isProcessing,
   currentLanguage = 'en'
 }) => {
@@ -54,10 +55,10 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
   }, [messages, activeSpeechInterim]);
 
   const quickPrompts = t.copilot?.quickPrompts || [
-    { label: 'What does E17 mean?', query: 'VoxLens, what does error code E17 mean on the VX-420?' },
-    { label: 'What should I check first?', query: 'What should I check first for error E17?' },
-    { label: 'Check replacement fan', query: 'Do we have a replacement cooling fan for VX-420 in Bay 4 inventory?' },
-    { label: 'Create ticket', query: 'Create a maintenance ticket for suspected cooling fan stall on Line 3.' }
+    { label: 'Explain carton defect', query: currentLanguage === 'hi' ? 'Carton damage defect explain karein' : 'Explain the visible carton damage on the conveyor' },
+    { label: 'What should I check first?', query: currentLanguage === 'hi' ? 'Sabse pehle kya check karein?' : 'What should I check first for this packaging defect?' },
+    { label: 'Red stack light meaning?', query: currentLanguage === 'hi' ? 'Red tower warning light ka kya matlab hai?' : 'What does the red tower warning light mean?' },
+    { label: '8-step repair workflow', query: currentLanguage === 'hi' ? '8-step repair workflow dikhayein' : 'Show the 8-step repair workflow' }
   ];
 
   const handleVoiceToggle = () => {
@@ -83,7 +84,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
         onError: () => {
           setVoiceFallbackNotice('Voice duplex simulated.');
           setTimeout(() => {
-            const fallbackCommand = quickPrompts[1]?.query || "The machine is showing error E17. What should I check first?";
+            const fallbackCommand = quickPrompts[0]?.query || "Explain the visible carton damage on the conveyor";
             setActiveSpeechInterim(fallbackCommand);
             setTimeout(() => {
               onSendMessage(fallbackCommand);
@@ -96,7 +97,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
 
       if (!started) {
         setTimeout(() => {
-          const fallbackCommand = quickPrompts[0]?.query || "VoxLens, what does error code E17 mean on the VX-420?";
+          const fallbackCommand = quickPrompts[0]?.query || "Explain the visible carton damage on the conveyor";
           setActiveSpeechInterim(fallbackCommand);
           setTimeout(() => {
             onSendMessage(fallbackCommand);
@@ -125,6 +126,9 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(lastVoxLensMsg.text);
           utterance.rate = 1.0;
+          if (currentLanguage === 'hi') {
+            utterance.lang = 'hi-IN';
+          }
           window.speechSynthesis.speak(utterance);
         }
       } catch {}
@@ -141,7 +145,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-[#060B16] rounded-3xl border border-white/[0.08] shadow-2xl overflow-hidden relative">
-      {/* Top Voice Copilot Header (Section 7) */}
+      {/* Top Voice Copilot Header */}
       <div className="p-5 border-b border-white/[0.08] bg-[#080F1E]/95 backdrop-blur-md flex items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-2xl bg-[#00F0FF]/15 border border-[#00F0FF]/30 flex items-center justify-center text-[#00F0FF] shadow-lg shadow-[#00F0FF]/10">
@@ -157,7 +161,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
               </span>
             </div>
             <div className="text-xs text-slate-400 font-mono">
-              Voice + Vision OCR + Grounded RAG Manual §4.3
+              Voice + Packaging Vision + Grounded SOP §6.2
             </div>
           </div>
         </div>
@@ -200,7 +204,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
       )}
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
         {messages.map((msg) => {
           const isVoxLens = msg.sender === 'voxlens';
           const isSystem = msg.sender === 'system';
@@ -231,13 +235,13 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
 
               {/* Message Bubble */}
               <div
-                className={`max-w-[95%] rounded-3xl p-6 text-base leading-relaxed shadow-xl ${
+                className={`max-w-[95%] rounded-3xl p-5 sm:p-6 text-sm sm:text-base leading-relaxed shadow-xl ${
                   isVoxLens
                     ? 'bg-[#080F1E] text-slate-100 border border-white/[0.1] ring-1 ring-white/[0.04]'
                     : 'bg-[#1E293B] text-white border border-white/[0.15]'
                 }`}
               >
-                <div className="whitespace-pre-line font-sans font-normal text-base">
+                <div className="whitespace-pre-line font-sans font-normal text-sm sm:text-base">
                   {msg.text}
                 </div>
 
@@ -254,7 +258,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
                             GROUNDED IN:
                           </div>
                           <div className="text-sm font-bold text-white truncate">
-                            {msg.citations[0].manualTitle.split('—')[0] || 'VX-420 SERVICE MANUAL (REV 4.2B)'}
+                            {msg.citations[0].manualTitle.split('—')[0] || 'PACKAGING LINE 3 SOP'}
                           </div>
                           <div className="text-xs text-slate-400 font-mono">
                             {msg.citations[0].section} · Page {msg.citations[0].page} · {msg.citations[0].relevanceScore}% vector match
@@ -278,16 +282,16 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
                   <div className="mt-4 p-4 rounded-2xl bg-[#030712] border border-[#00F0FF]/30 space-y-2.5 shadow-md">
                     <div className="text-xs font-bold text-[#00F0FF] uppercase tracking-wider flex items-center gap-1.5 font-mono">
                       <ListChecks className="w-4 h-4" />
-                      <span>RECOMMENDED NEXT STEPS:</span>
+                      <span>RECOMMENDED IMMEDIATE STEPS:</span>
                     </div>
-                    <div className="space-y-1.5 text-sm text-slate-200">
+                    <div className="space-y-1.5 text-xs sm:text-sm text-slate-200">
                       <div className="flex items-start gap-2.5">
                         <span className="w-5 h-5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-                        <span>Inspect axial cooling fan shroud for particulate binding and impeller drag.</span>
+                        <span>Isolate affected damaged carton from line and apply LOTO before cell entry.</span>
                       </div>
                       <div className="flex items-start gap-2.5">
                         <span className="w-5 h-5 rounded-full bg-[#00F0FF]/20 text-[#00F0FF] text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                        <span>Verify 3-phase harness connections at Terminal Block TB-2 (2.8 Nm torque).</span>
+                        <span>Inspect robotic gripper vacuum cups, conveyor transfer plate, and verify PLC alarm log.</span>
                       </div>
                     </div>
                   </div>
@@ -302,11 +306,11 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
                         HUMAN AUTHORIZATION REQUIRED
                       </span>
                       <span className="text-xs font-mono font-black text-amber-400 bg-amber-500/20 px-3 py-1 rounded-lg border border-amber-500/30">
-                        $245.00
+                        LOTO SW-1
                       </span>
                     </div>
                     <p className="text-sm text-slate-200 leading-relaxed">
-                      Requisition Part #VX-CF42 (Cooling Fan) and dispatch Maintenance Work Order #TCK-2026-881.
+                      Requisition Part #PKG-GRP42 (Gripper Vacuum Cup Assembly) and dispatch Maintenance Ticket #TCK-2026-881.
                     </p>
                     <button
                       onClick={onRequestSafetyApproval}
@@ -347,7 +351,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
         ))}
       </div>
 
-      {/* Bottom Voice Controls & Mic Bar (Section 7) */}
+      {/* Bottom Voice Controls & Mic Bar */}
       <div className="p-4 sm:p-5 border-t border-white/[0.08] bg-[#060B16]">
         {/* SPEAK / STOP / REPEAT Action Buttons Strip */}
         <div className="flex items-center justify-between gap-2 mb-3">
@@ -378,7 +382,7 @@ export const CopilotChat: React.FC<CopilotChatProps> = ({
           </div>
 
           <div className="text-[11px] font-mono text-slate-400 hidden sm:block">
-            WebSpeech Duplex Active
+            {currentLanguage.toUpperCase()} · WebSpeech Duplex
           </div>
         </div>
 
