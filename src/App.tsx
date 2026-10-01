@@ -318,17 +318,15 @@ export function App() {
     addToast('Case Reopened', 'Investigation returned to active troubleshooting.', 'warning');
   };
 
-  // Handle Language Switch across the entire application
+  // Handle Language Switch across the entire application (All 10 Dialects)
   const handleSelectLanguage = (newLang: LanguageCode) => {
     setCurrentLanguage(newLang);
     const t = getTranslation(newLang);
     const langMeta = SUPPORTED_LANGUAGES.find(l => l.code === newLang);
 
-    // Provide localized packaging diagnostic message
+    // Provide localized packaging diagnostic message directly from dictionary
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const localizedMsg = newLang === 'hi'
-      ? 'Image mein conveyor belt par ek cardboard carton buri tarah damage hua dikh raha hai. Sabse pehle affected carton ko production line se safely isolate karein. Iske baad robotic gripper, conveyor transfer points aur carton packaging quality inspect karein. Red warning light ka exact alarm HMI ya PLC se verify karna zaroori hai. Root cause confirm hone ke baad authorized technician corrective action le aur controlled test run kare.'
-      : 'The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action.';
+    const localizedMsg = t.copilot?.cartonDiagnosis || t.copilot?.greeting;
 
     const localizedInitMsg: CopilotMessage = {
       id: `msg-lang-${Date.now()}`,
@@ -336,20 +334,25 @@ export function App() {
       text: localizedMsg,
       timestamp: timeStr,
       citations: [PACKAGING_DEFECT_MANUAL_CITATIONS[0]],
-      suggestedPrompts: [
-        newLang === 'hi' ? 'Carton defect explain karein' : 'Explain carton defect',
-        newLang === 'hi' ? 'Sabse pehle kya check karein?' : 'What should I check first?',
-        newLang === 'hi' ? 'Red stack light ka matlab?' : 'Red stack light meaning?',
-        newLang === 'hi' ? '8-step repair workflow' : '8-step repair workflow'
+      suggestedPrompts: t.copilot?.quickPrompts?.map(qp => qp.label) || [
+        'Analyze Damaged Carton',
+        'What should I check first?',
+        'Red Warning Light Meaning',
+        '8-Step Repair Workflow'
       ]
     };
     setMessages([localizedInitMsg]);
 
+    setDecisionSummary(prev => ({
+      ...prev,
+      recommendation: `${t.copilot?.recStep1 || ''} ${t.copilot?.recStep2 || ''}`
+    }));
+
     addToast(`Language: ${langMeta?.nativeLabel || newLang.toUpperCase()}`, localizedMsg.slice(0, 80) + '...', 'info');
 
-    // Speak brief localized greeting
+    // Speak localized greeting in the exact regional voice
     soundEngine.speak(
-      newLang === 'hi' ? 'VOXLENS हिंदी मोड सक्रिय है। कार्टन डैमेज जांच तैयार है।' : 'VoxLens language updated. Ready for packaging defect inspection.',
+      localizedMsg.slice(0, 200),
       langMeta?.speechLocale || 'en-US'
     );
   };
@@ -358,14 +361,13 @@ export function App() {
   const handleSelectScenario = (scenarioId: string) => {
     setCurrentScenario(scenarioId);
     soundEngine.playMicOn();
+    const t = getTranslation(currentLanguage);
 
     if (scenarioId === 'packaging-defect') {
       const msg: CopilotMessage = {
         id: `scen-${Date.now()}`,
         sender: 'voxlens',
-        text: currentLanguage === 'hi'
-          ? "Image mein conveyor belt par ek cardboard carton buri tarah damage hua dikh raha hai. Sabse pehle affected carton ko production line se safely isolate karein. Iske baad robotic gripper, conveyor transfer points aur carton packaging quality inspect karein. Red warning light ka exact alarm HMI ya PLC se verify karna zaroori hai. Root cause confirm hone ke baad authorized technician corrective action le aur controlled test run kare."
-          : "The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action.",
+        text: t.copilot?.cartonDiagnosis || t.copilot?.greeting,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         citations: [PACKAGING_DEFECT_MANUAL_CITATIONS[0]]
       };
@@ -409,6 +411,7 @@ export function App() {
   const handleTriggerScan = () => {
     setIsScanning(true);
     soundEngine.playScanPing();
+    const t = getTranslation(currentLanguage);
     const langMeta = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage);
 
     addToast('Scanning Image', 'Analyzing visible objects, carton damage, and stack light...', 'info');
@@ -418,9 +421,7 @@ export function App() {
       soundEngine.playScanPing();
       addToast('Defect Identified', 'Crushed & torn carton on conveyor · Red stack light active', 'warning');
 
-      const responseText = currentLanguage === 'hi'
-        ? 'Image analysis verified: Conveyor belt par crushed & torn carton mila hai. Red stack light active hai lekin iska alarm code PLC/HMI log se check karna mandatory hai.'
-        : 'Image analysis verified: Severely crushed and torn cardboard carton observed on conveyor. Red stack light active — alarm meaning undetermined pending PLC/HMI verification.';
+      const responseText = t.copilot?.responseScanDetected || "Image analysis verified: Severely crushed and torn cardboard carton observed on conveyor. Red stack light active — alarm meaning undetermined pending PLC/HMI verification.";
 
       const botMsg: CopilotMessage = {
         id: `scan-msg-${Date.now()}`,
@@ -441,6 +442,7 @@ export function App() {
   // Dispatch AI Copilot Response (Multilingual Aware & Grounded)
   const handleSendMessage = (userText: string, intent?: string) => {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const t = getTranslation(currentLanguage);
     const langMeta = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage);
     
     // Add user message
@@ -463,40 +465,32 @@ export function App() {
       let actionCard: any = undefined;
 
       // Handle Red Warning Light query
-      if (lower.includes('light') || lower.includes('stack') || lower.includes('red') || lower.includes('लाल') || lower.includes('लाइट')) {
-        replyText = currentLanguage === 'hi'
-          ? 'Red tower warning light active dikh rahi hai. Important: Red light se koi specific alarm code ya sensor reading infer mat karein. Iska exact fault code HMI screen ya PLC alarm history se verify karna zaroori hai.'
-          : 'A red illuminated tower warning light is visible in the background. Important: The exact alarm code cannot be determined from the light color alone. Verify the active alarm code directly from the HMI screen or PLC fault buffer.';
+      if (lower.includes('light') || lower.includes('stack') || lower.includes('red') || lower.includes('लाल') || lower.includes('লাইট') || lower.includes('விளக்கு') || lower.includes('లైట్') || lower.includes('दिवा') || lower.includes('લાઇટ') || lower.includes('ದೀಪ') || lower.includes('ਬੱਤੀ') || lower.includes('لائٹ')) {
+        replyText = t.copilot?.responseStackLight || t.copilot?.responseE17Mean || "A red illuminated tower warning light is visible in the background. Verify the active alarm code directly from the HMI screen or PLC fault buffer.";
         soundEngine.playAlert();
         addToast('Alarm Verification Gate', 'Verify red stack light code in PLC/HMI log.', 'warning');
       }
       // Handle "What should I check first" query
-      else if (lower.includes('first') || lower.includes('check first') || lower.includes('पहले') || lower.includes('step 1') || lower.includes('शुरू')) {
-        replyText = currentLanguage === 'hi'
-          ? 'STEP 1 — SAFETY: Sabse pehle machine ko isolate karein aur LOTO SW-1 apply karein. Uske baad STEP 2: Damaged carton ko production stream se hatayein aur aas-paas ke cartons inspect karein.'
-          : 'STEP 1 — SAFETY: First stop and isolate the affected equipment and apply Lockout/Tagout (LOTO SW-1). Next, STEP 2 — CONTAINMENT: Isolate the damaged carton from the production stream and inspect adjacent cartons.';
+      else if (lower.includes('first') || lower.includes('check first') || lower.includes('पहले') || lower.includes('step 1') || lower.includes('প্রথম') || lower.includes('முதலில்') || lower.includes('మొదట') || lower.includes('प्रथम') || lower.includes('પહેલા') || lower.includes('ಮೊದಲು') || lower.includes('ਪਹਿਲਾਂ') || lower.includes('پہلے')) {
+        replyText = t.copilot?.responseCheckFirst || "STEP 1 — SAFETY: First stop and isolate the affected equipment and apply Lockout/Tagout (LOTO SW-1). Next, STEP 2 — CONTAINMENT: Isolate the damaged carton from the production stream.";
         soundEngine.playMicOn();
         addToast('Safety & Containment', 'SOP Section 6.2 & LOTO Section 2.1', 'info');
       }
       // Handle ticket / CMMS request
-      else if (lower.includes('ticket') || lower.includes('create ticket') || lower.includes('टिकट')) {
-        replyText = currentLanguage === 'hi'
-          ? 'Maine Line 3 packaging cell ke liye Maintenance Ticket #TCK-2026-881 draft kar diya hai. LOTO SW-1 isolation aur replacement vacuum suction cups ke liye human sign-off zaroori hai.'
-          : 'I have drafted Maintenance Ticket #TCK-2026-881 for Line 3 packaging cell. Human sign-off is required for LOTO SW-1 isolation and part requisition.';
+      else if (lower.includes('ticket') || lower.includes('create ticket') || lower.includes('टिकट') || lower.includes('টিকিট') || lower.includes('டிக்கெட்') || lower.includes('టికెట్') || lower.includes('तिकीट') || lower.includes('ટિકિટ') || lower.includes('ಟಿಕೆಟ್') || lower.includes('ਟਿਕਟ') || lower.includes('ٹکٹ')) {
+        replyText = t.copilot?.responseCreateTicket || "I have prepared Work Order #TCK-2026-881 for Line 3 Packaging. Human authorization is required for LOTO SW-1 isolation and part requisition.";
         actionCard = {
           type: 'approval_request',
           payload: {
-            title: 'Authorize Gripper Cup Kit ($245.00) & Log Ticket #TCK-2026-881'
+            title: `${t.safetyGate?.authorize || 'Authorize Part Kit ($245.00)'} & Log Ticket #TCK-2026-881`
           }
         };
         soundEngine.playAlert();
         addToast('Human Approval Required', 'Financial & LOTO authorization required.', 'approval');
       }
-      // Default: Comprehensive packaging defect diagnosis
+      // Default: Comprehensive packaging defect diagnosis in the active language
       else {
-        replyText = currentLanguage === 'hi'
-          ? 'Image mein conveyor belt par ek cardboard carton buri tarah damage hua dikh raha hai. Sabse pehle affected carton ko production line se safely isolate karein. Iske baad robotic gripper, conveyor transfer points aur carton packaging quality inspect karein. Red warning light ka exact alarm HMI ya PLC se verify karna zaroori hai. Root cause confirm hone ke baad authorized technician corrective action le aur controlled test run kare.'
-          : 'The image shows a severely crushed and torn carton on the conveyor. Isolate the affected carton, inspect the robotic gripping and conveyor transfer mechanisms, and verify the warning indicator against the actual machine alarm log. Confirm the root cause before implementing corrective action.';
+        replyText = t.copilot?.cartonDiagnosis || t.copilot?.responseCartonHelp || t.copilot?.greeting;
         soundEngine.playMicOn();
       }
 
@@ -514,10 +508,10 @@ export function App() {
       setIsProcessing(false);
       setVoiceState('RESPONDING');
 
-      // Speak response in the appropriate locale
+      // Speak response in the exact locale of chosen language
       soundEngine.speak(
         replyText.slice(0, 240),
-        langMeta?.speechLocale || (currentLanguage === 'hi' ? 'hi-IN' : 'en-US'),
+        langMeta?.speechLocale || 'en-US',
         () => setVoiceState('RESPONDING'),
         () => setVoiceState('IDLE')
       );
