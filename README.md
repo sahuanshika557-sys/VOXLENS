@@ -53,33 +53,7 @@ Modern industrial factories face crippling downtime losses exceeding **$1,850 pe
 
 ---
 
-## ⚡ Local Development & Setup
 
-### Prerequisites
-- Node.js (v18.0 or higher)
-- npm or yarn
-
-```bash
-# 1. Clone repository
-git clone https://github.com/sahuanshika557-sys/VOXLENS.git
-cd VOXLENS
-
-# 2. Install dependencies
-npm install
-
-# 3. Launch the Mission Control command center
-npm run dev
-
-# 4. Open in your browser
-http://localhost:5173/
-```
-
-To verify production bundle compilation:
-```bash
-npm run build
-```
-
----
 
 ## 📊 Traditional Field Service vs. VOXLENS
 
