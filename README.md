@@ -12,6 +12,7 @@
 ### **Real-Time Multimodal AI Copilot for Industrial Field Service**
 *NASA Mission Control + Automotive Cockpit + Multimodal AI Operating System*
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-voxlens--hazel.vercel.app-00F0FF?style=for-the-badge&logo=vercel&logoColor=black)](https://voxlens-hazel.vercel.app/)
 [![Vite](https://img.shields.io/badge/Vite-6.0+-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -25,11 +26,19 @@
 
 > *"See the fault. Hear the fix. Let the agent handle the next step."*
 
-[🚀 Live Demo](#-quick-start) • [✨ Key Innovations](#-key-architectural-innovations) • [📐 System Architecture](#-tri-modal-system-architecture) • [🎬 Case Study](#-the-45-second-case-study-e17-cooling-fault) • [🌐 Multilingual](#-multilingual-ai-architecture-10-languages)
+[🌐 **Live Demo (Vercel)**](https://voxlens-hazel.vercel.app/) • [✨ Key Innovations](#-key-architectural-innovations) • [📐 System Architecture](#-tri-modal-system-architecture) • [🎬 Case Study](#-the-45-second-case-study-e17-cooling-fault) • [🌐 Multilingual](#-multilingual-ai-architecture-10-languages)
 
 ---
 
 </div>
+
+## 🌐 Live Cloud Deployment
+
+> 🚀 **Production Application URL:** **[https://voxlens-hazel.vercel.app/](https://voxlens-hazel.vercel.app/)**
+>
+> Instant hands-free duplex voice recognition, simulated computer vision camera feed, OEM manual RAG retrieval, and Level-2 safety gate are live and accessible globally.
+
+---
 
 ## 📌 Executive Summary
 
@@ -44,7 +53,7 @@ Modern industrial factories face crippling downtime losses exceeding **$1,850 pe
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Local Development & Setup
 
 ### Prerequisites
 - Node.js (v18.0 or higher)
