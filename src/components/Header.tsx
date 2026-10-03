@@ -61,14 +61,52 @@ export const Header: React.FC<HeaderProps> = ({
   const [showScenarioMenu, setShowScenarioMenu] = useState<boolean>(false);
   const t = getTranslation(currentLanguage);
 
-  const scenarios = [
-    { id: 'e17-cooling', label: 'E17 Motor Thermal Overload (Standard Demo)' },
-    { id: 'low-confidence', label: 'Low Visual Confidence (Conveyor Obstruction)' },
-    { id: 'camera-blocked', label: 'Particulate Lens Flare / Camera Obscured' },
-    { id: 'manual-missing', label: 'General Industrial Standards (IEC Fallback)' },
-    { id: 'zero-inventory', label: 'Bay Stockroom Zero Inventory Alert' },
-    { id: 'network-degraded', label: 'Offline Edge Mode (Local SLM Execution)' }
+  const scenarioGroups = [
+    {
+      group: '📦 Packaging & Visual Inspection',
+      items: [
+        { id: 'packaging-defect', label: '1. Packaging Defect (Crushed Carton & Stack Light)', code: 'CRUSH' },
+      ]
+    },
+    {
+      group: '🌡️ Thermal & Cooling Systems',
+      items: [
+        { id: 'e17-cooling', label: '2. Thermal Overload (E17 Stator & Fan Stall)', code: 'E17' },
+      ]
+    },
+    {
+      group: '⚙️ Mechanical & Kinematic Drive',
+      items: [
+        { id: 'bearing-vibration', label: '3. Bearing Wear & Vibration Anomaly (4.8 mm/s)', code: 'VIB' },
+        { id: 'belt-slippage', label: '4. Drive Belt Slippage & Tension Loss (2840 RPM)', code: 'BELT' },
+      ]
+    },
+    {
+      group: '🗜️ Hydraulics & Stamping',
+      items: [
+        { id: 'hydraulic-press', label: '5. Hydraulic Press & Pressure Drop (CR-800)', code: 'CR800' },
+      ]
+    },
+    {
+      group: '⚡ Electrical & Digital HMI',
+      items: [
+        { id: 'optical-ocr', label: '6. Electrical & OCR Error Code (E04 Overcurrent)', code: 'E04' },
+      ]
+    },
+    {
+      group: '🌐 Edge Degraded & Fallback Modes',
+      items: [
+        { id: 'zero-inventory', label: '7. Bay Stockroom Zero Inventory Alert', code: 'STOCK' },
+        { id: 'low-confidence', label: '8. Low Visual Confidence (Conveyor Obstruction)', code: 'LOW_CONF' },
+        { id: 'camera-blocked', label: '9. Particulate Lens Flare / Camera Obscured', code: 'LENS' },
+        { id: 'manual-missing', label: '10. General Industrial Standards (IEC Fallback)', code: 'IEC' },
+        { id: 'network-degraded', label: '11. Offline Edge Mode (Local SLM Execution)', code: 'SLM' }
+      ]
+    }
   ];
+
+  const allScenarios = scenarioGroups.flatMap(g => g.items);
+  const activeScenarioObj = allScenarios.find(s => s.id === currentScenario) || allScenarios[0];
 
   const orbState = 
     voiceState === 'LISTENING' ? 'listening' :
@@ -99,9 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span>·</span>
             <span>#VX-2048</span>
             <span>·</span>
-            <span className="text-slate-200 font-semibold">VX-420</span>
-            <span>·</span>
-            <span className="text-[#00F0FF]">LINE 3</span>
+            <span className="text-slate-200 font-semibold">{activeEquipmentName}</span>
           </div>
         </div>
       </div>
@@ -114,7 +150,7 @@ export const Header: React.FC<HeaderProps> = ({
         </span>
         <div className="h-4 w-px bg-white/10" />
         <span className="text-xs font-mono text-slate-300">
-          Packaging Unit Line 3
+          {activeScenarioObj.label.split('(')[0]}
         </span>
         {activeErrorCode && (
           <>
@@ -151,36 +187,44 @@ export const Header: React.FC<HeaderProps> = ({
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#080F1E] hover:bg-[#0E1B2E] border border-white/10 text-xs font-medium text-slate-200 transition-colors cursor-pointer"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#00F0FF]" />
-            <span className="hidden xl:inline text-slate-400 font-mono">Scenario:</span>
-            <span className="font-semibold text-slate-200 truncate max-w-[80px]">
-              {scenarios.find(s => s.id === currentScenario)?.label.split(' ')[0] || 'E17'}
+            <span className="hidden xl:inline text-slate-400 font-mono">Fault Suite:</span>
+            <span className="font-semibold text-slate-200 truncate max-w-[120px]">
+              {activeScenarioObj.code}
             </span>
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>
 
           {showScenarioMenu && (
-            <div className="absolute right-0 mt-2 w-72 bg-[#050914] border border-white/15 rounded-2xl shadow-2xl p-2 z-50 animate-fadeIn backdrop-blur-xl">
-              <div className="px-3 py-2 text-[10px] text-slate-400 font-mono font-bold uppercase tracking-wider border-b border-white/10">
-                Simulation Scenarios
+            <div className="absolute right-0 mt-2 w-96 max-h-[80vh] overflow-y-auto bg-[#050914] border border-white/15 rounded-2xl shadow-2xl p-2 z-50 animate-fadeIn backdrop-blur-xl">
+              <div className="px-3 py-2 text-[10px] text-slate-400 font-mono font-bold uppercase tracking-wider border-b border-white/10 flex items-center justify-between">
+                <span>Select Industrial Fault Suite</span>
+                <span className="text-[#00F0FF] font-mono">11 Scenarios</span>
               </div>
-              <div className="space-y-1 mt-1">
-                {scenarios.map((sc) => (
-                  <button
-                    key={sc.id}
-                    onClick={() => {
-                      onSelectScenario(sc.id);
-                      setShowScenarioMenu(false);
-                      soundEngine.playMicOn();
-                    }}
-                    className={`w-full px-3 py-2 rounded-xl text-left text-xs transition-colors flex items-center justify-between cursor-pointer ${
-                      currentScenario === sc.id
-                        ? 'bg-[#00F0FF]/15 text-[#00F0FF] font-bold border border-[#00F0FF]/30'
-                        : 'text-slate-300 hover:bg-white/5'
-                    }`}
-                  >
-                    <span>{sc.label}</span>
-                    {currentScenario === sc.id && <span className="w-2 h-2 rounded-full bg-[#00F0FF]" />}
-                  </button>
+              <div className="space-y-3 mt-2">
+                {scenarioGroups.map((grp) => (
+                  <div key={grp.group} className="space-y-1">
+                    <div className="text-[10px] font-mono font-bold text-slate-400 px-2 py-0.5 uppercase tracking-wider bg-white/[0.03] rounded">
+                      {grp.group}
+                    </div>
+                    {grp.items.map((sc) => (
+                      <button
+                        key={sc.id}
+                        onClick={() => {
+                          onSelectScenario(sc.id);
+                          setShowScenarioMenu(false);
+                          soundEngine.playMicOn();
+                        }}
+                        className={`w-full px-3 py-2 rounded-xl text-left text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                          currentScenario === sc.id
+                            ? 'bg-[#00F0FF]/15 text-[#00F0FF] font-bold border border-[#00F0FF]/30'
+                            : 'text-slate-300 hover:bg-white/5'
+                        }`}
+                      >
+                        <span className="truncate pr-2">{sc.label}</span>
+                        {currentScenario === sc.id && <span className="w-2 h-2 rounded-full bg-[#00F0FF] shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>

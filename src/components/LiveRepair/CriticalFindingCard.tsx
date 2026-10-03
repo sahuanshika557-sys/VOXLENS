@@ -3,6 +3,14 @@ import { AlertTriangle, ShieldAlert, ArrowRight, Eye, Wrench, Package, HelpCircl
 import { soundEngine } from '../../utils/soundEngine';
 
 interface CriticalFindingCardProps {
+  faultTitle?: string;
+  defectCategory?: string;
+  severity?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  confidenceLabel?: string;
+  observedEvidence?: string[];
+  aiInferences?: string[];
+  verifiedTelemetryStatus?: string;
+  recommendedAction?: string;
   errorCode?: string;
   temperatureC?: number;
   onOpenSafetyModal?: () => void;
@@ -11,6 +19,24 @@ interface CriticalFindingCardProps {
 }
 
 export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
+  faultTitle = 'Packaging Integrity / Crushed Carton Defect',
+  defectCategory = 'Packaging Integrity / Carton Damage',
+  severity = 'HIGH',
+  confidenceLabel = 'Visual assessment — requires physical verification',
+  observedEvidence = [
+    'Severely crushed and torn cardboard carton on conveyor belt',
+    'Red illuminated tower warning stack light active',
+    'Multiple intact cartons & robotic packaging arm'
+  ],
+  aiInferences = [
+    '1. Excessive robotic gripping force',
+    '2. Gripper alignment / vacuum cups wear',
+    '3. Conveyor transfer-point misalignment',
+    '4. Carton material weakness / dimensions',
+    '5. Upstream carton collision / jam'
+  ],
+  verifiedTelemetryStatus = 'Stack Light Alarm Code: Unknown — Must be verified from HMI/PLC log. Never infer from light color alone.',
+  recommendedAction = 'Isolate damaged carton from production stream, inspect robotic gripper & conveyor transfer plate, verify PLC alarm log.',
   errorCode = 'UNKNOWN (VERIFY ON HMI)',
   temperatureC = 26.4,
   onOpenSafetyModal,
@@ -18,6 +44,12 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
   onOpenWorkflow
 }) => {
   const [showDetailedEvidence, setShowDetailedEvidence] = useState<boolean>(false);
+
+  const severityBadgeClass = 
+    severity === 'CRITICAL' ? 'bg-red-500/20 text-red-300 border-red-500/40' :
+    severity === 'HIGH' ? 'bg-red-500/20 text-red-300 border-red-500/30' :
+    severity === 'MEDIUM' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+    'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
 
   return (
     <div className="w-full rounded-3xl bg-gradient-to-br from-[#12080D] via-[#090C19] to-[#050914] border-2 border-red-500/40 p-5 sm:p-6 shadow-2xl relative overflow-hidden">
@@ -35,10 +67,12 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
             <div className="text-[11px] font-mono font-black text-red-400 uppercase tracking-widest flex items-center gap-2">
               <span>VISUAL FAULT IDENTIFIED</span>
               <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-              <span className="px-2 py-0.5 rounded bg-red-500/20 text-[10px] text-red-300 border border-red-500/30">SEVERITY: HIGH</span>
+              <span className={`px-2 py-0.5 rounded text-[10px] border font-mono ${severityBadgeClass}`}>
+                SEVERITY: {severity}
+              </span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-black text-white font-sans tracking-wide">
-              Packaging Integrity / Crushed Carton Defect
+            <h3 className="text-xl sm:text-2xl font-black text-white font-sans tracking-wide mt-0.5">
+              {faultTitle}
             </h3>
           </div>
         </div>
@@ -47,7 +81,7 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
         <div className="flex items-center gap-2">
           <span className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-mono font-bold flex items-center gap-1.5">
             <HelpCircle className="w-3.5 h-3.5" />
-            <span>Visual assessment — requires physical verification</span>
+            <span>{confidenceLabel}</span>
           </span>
         </div>
       </div>
@@ -65,18 +99,12 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">Directly Visible</span>
             </div>
             <ul className="space-y-1.5 text-xs text-slate-200">
-              <li className="flex items-start gap-1.5">
-                <span className="text-red-400 font-bold">•</span>
-                <span>Severely crushed and torn cardboard carton on conveyor belt</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-red-400 font-bold">•</span>
-                <span>Red illuminated tower stack light active</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-slate-400 font-bold">•</span>
-                <span>Multiple intact cartons & robotic packaging arm</span>
-              </li>
+              {observedEvidence.map((item, idx) => (
+                <li key={idx} className="flex items-start gap-1.5">
+                  <span className="text-red-400 font-bold">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
             </ul>
           </div>
         </div>
@@ -87,16 +115,14 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-mono text-purple-300 font-black uppercase tracking-wider flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5" />
-                AI INFERENCE (5 HYPOTHESES)
+                AI INFERENCE ({aiInferences.length} HYPOTHESES)
               </span>
               <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">Plausible</span>
             </div>
             <ul className="space-y-1 text-xs text-slate-300">
-              <li>1. Excessive robotic gripping force</li>
-              <li>2. Gripper alignment / vacuum cups wear</li>
-              <li>3. Conveyor transfer-point misalignment</li>
-              <li>4. Carton material weakness / dimensions</li>
-              <li>5. Upstream carton collision / jam</li>
+              {aiInferences.map((item, idx) => (
+                <li key={idx} className="leading-snug">{item}</li>
+              ))}
             </ul>
           </div>
         </div>
@@ -113,11 +139,11 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
             </div>
             <div className="text-xs text-slate-300 space-y-1.5">
               <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                <span className="font-bold text-amber-300 block mb-0.5">Stack Light Alarm Code:</span>
-                <span className="text-slate-200">Unknown — Must be verified from HMI/PLC log. Never infer from light color alone.</span>
+                <span className="font-bold text-amber-300 block mb-0.5">Telemetry & Alarm State:</span>
+                <span className="text-slate-200">{verifiedTelemetryStatus}</span>
               </div>
               <div className="text-[11px] text-slate-400">
-                Root cause status: <span className="text-amber-300 font-mono font-bold">Undetermined pending physical check</span>
+                Active Code: <span className="text-amber-300 font-mono font-bold">{errorCode}</span> · Temp: <span className="text-[#00F0FF] font-mono font-bold">{temperatureC}°C</span>
               </div>
             </div>
           </div>
@@ -132,7 +158,7 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
             <span>Recommended Immediate Action:</span>
           </div>
           <p className="text-sm font-medium text-slate-200">
-            Isolate damaged carton from production stream, inspect robotic gripper & conveyor transfer plate, verify PLC alarm log.
+            {recommendedAction}
           </p>
         </div>
 
@@ -156,7 +182,7 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
               onClick={onOpenKnowledge}
               className="px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-xs font-mono font-bold text-slate-200 transition-colors cursor-pointer"
             >
-              Packaging SOP §6.2
+              Grounded SOP
             </button>
           )}
 
@@ -169,7 +195,7 @@ export const CriticalFindingCard: React.FC<CriticalFindingCardProps> = ({
               className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-mono font-black flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <ShieldAlert className="w-3.5 h-3.5" />
-              <span>LOTO SW-1</span>
+              <span>Safety Gate</span>
             </button>
           )}
         </div>

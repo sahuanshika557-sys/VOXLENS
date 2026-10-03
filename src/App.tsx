@@ -50,7 +50,8 @@ import {
   ticketService,
   INITIAL_8_STEP_REPAIR_WORKFLOW,
   INITIAL_PACKAGING_HYPOTHESES,
-  PACKAGING_DEFECT_MANUAL_CITATIONS
+  PACKAGING_DEFECT_MANUAL_CITATIONS,
+  getScenarioConfig
 } from './services';
 
 import { soundEngine } from './utils/soundEngine';
@@ -357,41 +358,45 @@ export function App() {
     );
   };
 
-  // Handle Scenario Switch
+  // Handle Scenario Switch (All 11 Industrial Suites & Fallbacks)
   const handleSelectScenario = (scenarioId: string) => {
     setCurrentScenario(scenarioId);
     soundEngine.playMicOn();
     const t = getTranslation(currentLanguage);
+    const langMeta = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage);
+    const cfg = getScenarioConfig(scenarioId);
 
+    // Synchronize all core application states to the chosen scenario
+    setActiveEquipment(cfg.equipment);
+    setWorkflowSteps(cfg.workflowSteps);
+    setHypotheses(cfg.hypotheses);
+    setSelectedCitation(cfg.citations[0] || null);
+    setDecisionSummary(cfg.decisionSummary);
+
+    let scenarioText = "";
     if (scenarioId === 'packaging-defect') {
-      const msg: CopilotMessage = {
-        id: `scen-${Date.now()}`,
-        sender: 'voxlens',
-        text: t.copilot?.cartonDiagnosis || t.copilot?.greeting,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        citations: [PACKAGING_DEFECT_MANUAL_CITATIONS[0]]
-      };
-      setMessages([msg]);
-      addToast('Packaging Defect Scenario', 'Crushed carton & red stack light test case loaded.', 'info');
-    } else if (scenarioId === 'low-confidence') {
-      const msg: CopilotMessage = {
-        id: `scen-${Date.now()}`,
-        sender: 'voxlens',
-        text: "⚠ Low Visual Confidence: The conveyor transfer angle is partially obscured by structural glare. Please upload a clear orthogonal photo or inspect the gripper fingers directly.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, msg]);
-      addToast('Low Visual Confidence', 'Conveyor guard is partially obscuring view.', 'warning');
+      scenarioText = t.copilot?.cartonDiagnosis || t.copilot?.greeting;
+    } else if (scenarioId === 'e17-cooling') {
+      scenarioText = t.copilot?.responseE17Mean || `E17 Motor Stator Thermal Overload: 88.4°C detected on stator housing with restricted cooling airflow (1.2 L/min). Apply LOTO SW-1 and inspect axial fan impeller for particulate binding.`;
     } else {
-      const msg: CopilotMessage = {
-        id: `scen-${Date.now()}`,
-        sender: 'voxlens',
-        text: "✓ Connected to primary Line 3 packaging line. Ready for fault diagnosis.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, msg]);
-      addToast('Connected to Line 3', 'Ready for packaging diagnosis.', 'success');
+      scenarioText = `${cfg.label} activated. Observed: ${cfg.observedEvidence.join(' · ')}. Recommendation: ${cfg.recommendedAction}`;
     }
+
+    const msg: CopilotMessage = {
+      id: `scen-${Date.now()}`,
+      sender: 'voxlens',
+      text: scenarioText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      citations: cfg.citations
+    };
+    setMessages([msg]);
+    addToast(cfg.label, `Telemetry & 8-Step Workflow synchronized.`, 'info');
+
+    // Voice announcement
+    soundEngine.speak(
+      scenarioText.slice(0, 180),
+      langMeta?.speechLocale || 'en-US'
+    );
   };
 
   // Audio / Speech Toggles
@@ -731,38 +736,51 @@ export function App() {
 
         {/* Center Viewport */}
         <main className="flex-1 flex flex-col min-w-0 bg-[#050816] overflow-hidden relative">
-          {activeTab === 'live-repair' && (
-            <LiveRepairView
-              equipment={activeEquipment}
-              messages={messages}
-              voiceState={voiceState}
-              planSteps={planSteps}
-              decisionSummary={decisionSummary}
-              safetyGate={safetyGate}
-              workflowSteps={workflowSteps}
-              hypotheses={hypotheses}
-              onToggleWorkflowStep={handleToggleWorkflowStep}
-              onUpdateStepNotes={handleUpdateStepNotes}
-              onUpdateHypothesisStatus={handleUpdateHypothesisStatus}
-              onAttachEvidence={handleAttachEvidence}
-              onSignoffWorkflow={handleSignoffWorkflow}
-              onReopenWorkflow={handleReopenWorkflow}
-              onSendMessage={handleSendMessage}
-              onSelectManualCitation={(cite) => {
-                setSelectedCitation(cite);
-                setActiveTab('knowledge');
-              }}
-              onOpenSafetyModal={() => setIsSafetyModalOpen(true)}
-              onOpenKnowledge={() => setActiveTab('knowledge')}
-              onDetectFault={(code) => {
-                handleSendMessage(`I detected defect ${code} on the equipment. What is the grounded troubleshooting workflow?`);
-              }}
-              isScanning={isScanning}
-              onTriggerScan={handleTriggerScan}
-              isProcessing={isProcessing}
-              currentLanguage={currentLanguage}
-            />
-          )}
+          {activeTab === 'live-repair' && (() => {
+            const activeScenarioConfig = getScenarioConfig(currentScenario);
+            return (
+              <LiveRepairView
+                equipment={activeEquipment}
+                messages={messages}
+                voiceState={voiceState}
+                planSteps={planSteps}
+                decisionSummary={decisionSummary}
+                safetyGate={safetyGate}
+                workflowSteps={workflowSteps}
+                hypotheses={hypotheses}
+                onToggleWorkflowStep={handleToggleWorkflowStep}
+                onUpdateStepNotes={handleUpdateStepNotes}
+                onUpdateHypothesisStatus={handleUpdateHypothesisStatus}
+                onAttachEvidence={handleAttachEvidence}
+                onSignoffWorkflow={handleSignoffWorkflow}
+                onReopenWorkflow={handleReopenWorkflow}
+                onSendMessage={handleSendMessage}
+                onSelectManualCitation={(cite) => {
+                  setSelectedCitation(cite);
+                  setActiveTab('knowledge');
+                }}
+                onOpenSafetyModal={() => setIsSafetyModalOpen(true)}
+                onOpenKnowledge={() => setActiveTab('knowledge')}
+                onDetectFault={(code) => {
+                  handleSendMessage(`I detected defect ${code} on the equipment. What is the grounded troubleshooting workflow?`);
+                }}
+                isScanning={isScanning}
+                onTriggerScan={handleTriggerScan}
+                isProcessing={isProcessing}
+                currentLanguage={currentLanguage}
+                scenarioId={currentScenario}
+                faultTitle={activeScenarioConfig.faultTitle}
+                defectCategory={activeScenarioConfig.defectCategory}
+                severity={activeScenarioConfig.severity}
+                confidenceLabel={activeScenarioConfig.confidenceLabel}
+                observedEvidence={activeScenarioConfig.observedEvidence}
+                aiInferences={activeScenarioConfig.aiInferences}
+                verifiedTelemetryStatus={activeScenarioConfig.verifiedTelemetryStatus}
+                recommendedAction={activeScenarioConfig.recommendedAction}
+                boundingBoxes={activeScenarioConfig.boundingBoxes}
+              />
+            );
+          })()}
 
           {activeTab === 'knowledge' && (
             <KnowledgeView

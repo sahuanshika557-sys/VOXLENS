@@ -91,7 +91,7 @@ export interface AIDecisionSummary {
   observed: string[];
   knowledgeUsed: string[];
   recommendation: string;
-  confidence: 'High' | 'Medium' | 'Low' | 'Requires Verification' | 'Visual Assessment';
+  confidence: 'High' | 'Medium' | 'Low' | 'Requires Verification' | 'Visual Assessment' | 'Low Confidence' | 'Grounded in Telemetry' | 'High (Standards-Based)' | 'Edge Verified';
   confidenceScore?: number; // 0-100 or null if visual only
   confidenceStatusLabel?: string;
   nextAction: string;
@@ -156,6 +156,8 @@ export interface MaintenanceTicket {
   priority: 'Critical' | 'High' | 'Medium' | 'Low';
   errorCode: string;
   reportedBy: string;
+  assignedTo?: string;
+  description?: string;
   createdAt: string;
   status: 'OPEN' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'RESOLVED' | 'REQUIRES_APPROVAL';
   suspectedRootCause: string;
@@ -235,7 +237,7 @@ export interface SupervisorMachineStatus {
 export interface RootCauseHypothesis {
   id: string;
   title: string;
-  category: 'ROBOTIC' | 'MECHANICAL' | 'MATERIAL' | 'OPERATIONAL';
+  category: 'ROBOTIC' | 'MECHANICAL' | 'MATERIAL' | 'OPERATIONAL' | 'ELECTRICAL' | 'SENSOR' | 'LUBRICATION' | 'HYDRAULIC' | 'SUPPLY_CHAIN' | 'STANDARDS';
   description: string;
   likelihood: 'High' | 'Medium' | 'Low';
   verificationMethod: string;
@@ -246,7 +248,7 @@ export interface RootCauseHypothesis {
 export interface RepairWorkflowStep {
   id: number;
   stepNumber: number;
-  phase: 'SAFETY' | 'CONTAINMENT' | 'MECHANICAL' | 'PACKAGING' | 'ALARM' | 'CORRECTIVE' | 'VERIFICATION' | 'RESOLUTION';
+  phase: 'SAFETY' | 'CONTAINMENT' | 'MECHANICAL' | 'PACKAGING' | 'ALARM' | 'CORRECTIVE' | 'VERIFICATION' | 'RESOLUTION' | 'ELECTRICAL';
   title: string;
   shortLabel: string;
   instructions: string;

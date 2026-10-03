@@ -50,6 +50,16 @@ interface LiveRepairViewProps {
   onTriggerScan: () => void;
   isProcessing: boolean;
   currentLanguage?: LanguageCode;
+  scenarioId?: string;
+  faultTitle?: string;
+  defectCategory?: string;
+  severity?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  confidenceLabel?: string;
+  observedEvidence?: string[];
+  aiInferences?: string[];
+  verifiedTelemetryStatus?: string;
+  recommendedAction?: string;
+  boundingBoxes?: any[];
 }
 
 export const LiveRepairView: React.FC<LiveRepairViewProps> = ({
@@ -75,7 +85,17 @@ export const LiveRepairView: React.FC<LiveRepairViewProps> = ({
   isScanning,
   onTriggerScan,
   isProcessing,
-  currentLanguage = 'en'
+  currentLanguage = 'en',
+  scenarioId,
+  faultTitle,
+  defectCategory,
+  severity,
+  confidenceLabel,
+  observedEvidence,
+  aiInferences,
+  verifiedTelemetryStatus,
+  recommendedAction,
+  boundingBoxes
 }) => {
   const [rightPanelTab, setRightPanelTab] = useState<'copilot' | 'workflow' | 'reasoning' | 'evidence' | 'agent' | 'timeline'>('copilot');
 
@@ -106,12 +126,22 @@ export const LiveRepairView: React.FC<LiveRepairViewProps> = ({
               isScanning={isScanning}
               onTriggerScan={onTriggerScan}
               voiceState={voiceState}
+              boundingBoxes={boundingBoxes}
+              scenarioId={scenarioId}
             />
           </div>
 
           {/* Active Visual Fault Diagnostic Card (Observed Evidence / Inferences / Verified Telemetry) */}
           <div className="w-full">
             <CriticalFindingCard
+              faultTitle={faultTitle}
+              defectCategory={defectCategory}
+              severity={severity}
+              confidenceLabel={confidenceLabel}
+              observedEvidence={observedEvidence}
+              aiInferences={aiInferences}
+              verifiedTelemetryStatus={verifiedTelemetryStatus}
+              recommendedAction={recommendedAction}
               errorCode={equipment.activeErrorCode || 'UNKNOWN (VERIFY ON HMI)'}
               temperatureC={equipment.telemetry.motorTempC || 26.4}
               onOpenSafetyModal={onOpenSafetyModal}
