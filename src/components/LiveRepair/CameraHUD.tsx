@@ -124,6 +124,12 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     }
   ];
 
+  // Reset custom image when switching fault scenario presets
+  useEffect(() => {
+    setUploadedImage(null);
+    setSelectedOverlay(null);
+  }, [scenarioId]);
+
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (useWebcam) {
@@ -222,15 +228,15 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-base sm:text-lg font-black text-white tracking-wide font-sans">
-                AUTOMATED PACKAGING LINE 3
+                {equipment.name || 'AUTOMATED PACKAGING LINE 3'}
               </h2>
               <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 font-mono">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                ● LIVE INSPECTION
+                ● {equipment.status ? equipment.status.toUpperCase() : 'LIVE INSPECTION'}
               </span>
             </div>
             <div className="text-xs text-slate-400 font-mono mt-0.5">
-              <span className="text-[#00F0FF] font-bold">Cell ROBO-PKG-03</span> · Sector 4 Conveyor Bed · Visual Defect Engine
+              <span className="text-[#00F0FF] font-bold">{equipment.model || 'Cell ROBO-PKG-03'}</span> · {equipment.line || 'Sector 4 Conveyor Bed'} · Visual Defect Engine
             </div>
           </div>
         </div>
@@ -300,7 +306,11 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
             <button
               key={sc.id}
               onClick={() => {
-                onSelectScenario(sc.id);
+                setUploadedImage(null);
+                setSelectedOverlay(null);
+                if (onSelectScenario) {
+                  onSelectScenario(sc.id);
+                }
                 soundEngine.playMicOn();
               }}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold whitespace-nowrap transition-all cursor-pointer ${
