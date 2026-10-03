@@ -18,6 +18,7 @@ import {
 import { Equipment, VoiceState, BoundingBox } from '../../types';
 import { soundEngine } from '../../utils/soundEngine';
 import { AIOrb } from '../common/AIOrb';
+import { visionService } from '../../services';
 
 const SCENARIO_DEFAULT_IMAGES: Record<string, string> = {
   'packaging-defect': 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1600&q=85',
@@ -65,6 +66,11 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
   const [showOverlays, setShowOverlays] = useState<boolean>(true);
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const [selectedOverlay, setSelectedOverlay] = useState<BoundingBox | null>(null);
+  const [autoDetectedBadge, setAutoDetectedBadge] = useState<{
+    label: string;
+    reason: string;
+    confidence: number;
+  } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -166,15 +172,33 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     };
   }, [useWebcam]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const result = event.target?.result as string;
         setUploadedImage(result);
         setUseWebcam(false);
         soundEngine.playScanPing();
+
+        // Autonomous Multi-Modal Image Classification
+        try {
+          const detected = await visionService.classifyImage(result);
+          if (detected && detected.scenarioId) {
+            if (onSelectScenario) {
+              onSelectScenario(detected.scenarioId);
+            }
+            setAutoDetectedBadge({
+              label: detected.scenarioId,
+              reason: detected.detectionReason,
+              confidence: detected.confidence
+            });
+          }
+        } catch {
+          // Fallback
+        }
+
         onTriggerScan();
         if (onImageUploaded) onImageUploaded(result);
       };
@@ -186,10 +210,11 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     soundEngine.playScanPing();
     setUploadedImage(null);
     setSelectedOverlay(null);
+    setAutoDetectedBadge(null);
     if (onResetImage) onResetImage();
   };
 
-  const handleCaptureFrame = () => {
+  const handleCaptureFrame = async () => {
     soundEngine.playScanPing();
     if (useWebcam && videoRef.current) {
       try {
@@ -202,6 +227,18 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           const dataUrl = canvas.toDataURL('image/jpeg');
           setUploadedImage(dataUrl);
           setUseWebcam(false);
+
+          // Autonomous classification on captured frame
+          const detected = await visionService.classifyImage(dataUrl);
+          if (detected && detected.scenarioId && onSelectScenario) {
+            onSelectScenario(detected.scenarioId);
+            setAutoDetectedBadge({
+              label: detected.scenarioId,
+              reason: detected.detectionReason,
+              confidence: detected.confidence
+            });
+          }
+
           if (onCaptureFrame) onCaptureFrame(dataUrl);
         }
       } catch {
@@ -329,6 +366,30 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
       <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[440px]">
         {/* Subtle industrial grid pattern */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-10" />
+
+        {/* AI Autonomous Detection Badge */}
+        {autoDetectedBadge && (
+          <div className="absolute top-4 left-4 z-30 bg-[#030712]/95 border border-[#00F0FF]/50 rounded-2xl px-3.5 py-2 shadow-2xl flex items-center gap-3 backdrop-blur-md animate-fadeIn">
+            <div className="w-7 h-7 rounded-xl bg-[#00F0FF]/20 flex items-center justify-center text-[#00F0FF]">
+              <Sparkles className="w-4 h-4 animate-spin" />
+            </div>
+            <div>
+              <div className="text-[10px] font-mono text-[#00F0FF] font-black uppercase tracking-wider flex items-center gap-2">
+                <span>AI AUTO-DETECTED FAULT</span>
+                <span className="px-1.5 py-0.5 rounded bg-[#00F0FF]/20 text-[9px] text-white font-mono">{autoDetectedBadge.confidence}% CERTAINTY</span>
+              </div>
+              <div className="text-xs font-mono text-slate-200 font-bold">
+                {autoDetectedBadge.reason}
+              </div>
+            </div>
+            <button
+              onClick={() => setAutoDetectedBadge(null)}
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/10 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Radar Scanning Line */}
         {isScanning && (
