@@ -38,7 +38,7 @@ interface CameraHUDProps {
   equipment: Equipment;
   onDetectFault: (errorCode: string) => void;
   isScanning: boolean;
-  onTriggerScan: () => void;
+  onTriggerScan: (targetScenarioId?: string) => void;
   onCaptureFrame?: (dataUrl: string) => void;
   onImageUploaded?: (dataUrl: string) => void;
   voiceState?: VoiceState;
@@ -46,6 +46,7 @@ interface CameraHUDProps {
   scenarioId?: string;
   onResetImage?: () => void;
   onSelectScenario?: (scenarioId: string) => void;
+  onSendMessage?: (text: string, intent?: string) => void;
 }
 
 export const CameraHUD: React.FC<CameraHUDProps> = ({
@@ -59,18 +60,27 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
   boundingBoxes,
   scenarioId = 'packaging-defect',
   onResetImage,
-  onSelectScenario
+  onSelectScenario,
+  onSendMessage
 }) => {
   const [useWebcam, setUseWebcam] = useState<boolean>(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [showOverlays, setShowOverlays] = useState<boolean>(true);
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const [selectedOverlay, setSelectedOverlay] = useState<BoundingBox | null>(null);
-  const [autoDetectedBadge, setAutoDetectedBadge] = useState<{
-    label: string;
-    reason: string;
+  const [detectedResult, setDetectedResult] = useState<{
+    scenarioId: string;
     confidence: number;
+    detectionReason: string;
+    candidates: {
+      scenarioId: string;
+      label: string;
+      confidence: number;
+      reason: string;
+      icon: string;
+    }[];
   } | null>(null);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -130,12 +140,6 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     }
   ];
 
-  // Reset custom image when switching fault scenario presets
-  useEffect(() => {
-    setUploadedImage(null);
-    setSelectedOverlay(null);
-  }, [scenarioId]);
-
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (useWebcam) {
@@ -172,9 +176,25 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     };
   }, [useWebcam]);
 
+  const runAnalysisOnImage = async (imageSource: string, fileHint?: string) => {
+    try {
+      const detected = await visionService.classifyImage(imageSource, fileHint);
+      setDetectedResult(detected);
+      if (detected && detected.scenarioId) {
+        if (onSelectScenario) {
+          onSelectScenario(detected.scenarioId);
+        }
+        onTriggerScan(detected.scenarioId);
+      }
+    } catch {
+      onTriggerScan();
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const fileName = file.name;
       const reader = new FileReader();
       reader.onload = async (event) => {
         const result = event.target?.result as string;
@@ -182,24 +202,9 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
         setUseWebcam(false);
         soundEngine.playScanPing();
 
-        // Autonomous Multi-Modal Image Classification
-        try {
-          const detected = await visionService.classifyImage(result);
-          if (detected && detected.scenarioId) {
-            if (onSelectScenario) {
-              onSelectScenario(detected.scenarioId);
-            }
-            setAutoDetectedBadge({
-              label: detected.scenarioId,
-              reason: detected.detectionReason,
-              confidence: detected.confidence
-            });
-          }
-        } catch {
-          // Fallback
-        }
+        // Run deep classification with fileName hint
+        await runAnalysisOnImage(result, fileName);
 
-        onTriggerScan();
         if (onImageUploaded) onImageUploaded(result);
       };
       reader.readAsDataURL(file);
@@ -210,7 +215,7 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     soundEngine.playScanPing();
     setUploadedImage(null);
     setSelectedOverlay(null);
-    setAutoDetectedBadge(null);
+    setDetectedResult(null);
     if (onResetImage) onResetImage();
   };
 
@@ -228,16 +233,7 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           setUploadedImage(dataUrl);
           setUseWebcam(false);
 
-          // Autonomous classification on captured frame
-          const detected = await visionService.classifyImage(dataUrl);
-          if (detected && detected.scenarioId && onSelectScenario) {
-            onSelectScenario(detected.scenarioId);
-            setAutoDetectedBadge({
-              label: detected.scenarioId,
-              reason: detected.detectionReason,
-              confidence: detected.confidence
-            });
-          }
+          await runAnalysisOnImage(dataUrl, 'webcam-capture-frame');
 
           if (onCaptureFrame) onCaptureFrame(dataUrl);
         }
@@ -245,7 +241,8 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
         onTriggerScan();
       }
     } else {
-      onTriggerScan();
+      const currentSrc = uploadedImage || SCENARIO_DEFAULT_IMAGES[scenarioId] || SCENARIO_DEFAULT_IMAGES['packaging-defect'];
+      await runAnalysisOnImage(currentSrc, scenarioId);
     }
   };
 
@@ -273,7 +270,7 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
               </span>
             </div>
             <div className="text-xs text-slate-400 font-mono mt-0.5">
-              <span className="text-[#00F0FF] font-bold">{equipment.model || 'Cell ROBO-PKG-03'}</span> · {equipment.line || 'Sector 4 Conveyor Bed'} · Visual Defect Engine
+              <span className="text-[#00F0FF] font-bold">{equipment.model || 'Cell ROBO-PKG-03'}</span> · {equipment.line || 'Sector 4 Conveyor Bed'} · Autonomous Visual AI
             </div>
           </div>
         </div>
@@ -320,7 +317,51 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
         </div>
       )}
 
-      {/* Quick Scenario Preset Strip */}
+      {/* AI Visual Detection Confirmation & Candidate Switcher Strip */}
+      {detectedResult && (
+        <div className="px-4 py-2.5 bg-gradient-to-r from-[#00F0FF]/15 via-[#0c1930] to-purple-950/30 border-b border-[#00F0FF]/30 flex flex-wrap items-center justify-between gap-2 animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-[#00F0FF]/25 flex items-center justify-center text-[#00F0FF]">
+              <Sparkles className="w-3.5 h-3.5 animate-spin" />
+            </div>
+            <div>
+              <div className="text-[11px] font-mono font-black text-white flex items-center gap-2">
+                <span className="text-[#00F0FF]">AI DETECTED FAULT:</span>
+                <span className="bg-[#00F0FF] text-slate-950 px-2 py-0.5 rounded text-[10px] font-bold">
+                  {detectedResult.confidence}% MATCH
+                </span>
+                <span className="text-slate-200">{detectedResult.detectionReason}</span>
+              </div>
+            </div>
+          </div>
+
+          {detectedResult.candidates && detectedResult.candidates.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono text-slate-400 font-bold">Alternative Matches:</span>
+              {detectedResult.candidates.map(cand => (
+                <button
+                  key={cand.scenarioId}
+                  onClick={() => {
+                    if (onSelectScenario) {
+                      onSelectScenario(cand.scenarioId);
+                      soundEngine.playMicOn();
+                    }
+                  }}
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                    scenarioId === cand.scenarioId
+                      ? 'bg-[#00F0FF] text-slate-950 font-black'
+                      : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
+                  }`}
+                >
+                  {cand.icon} {cand.confidence}%
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Quick Scenario Preset Strip (Manual Switch / Test Suites) */}
       {onSelectScenario && (
         <div className="px-4 py-2 bg-[#040813] border-b border-white/[0.06] flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
@@ -343,7 +384,6 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
             <button
               key={sc.id}
               onClick={() => {
-                setUploadedImage(null);
                 setSelectedOverlay(null);
                 if (onSelectScenario) {
                   onSelectScenario(sc.id);
@@ -361,35 +401,10 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           ))}
         </div>
       )}
-
       {/* Main Image Inspection Container */}
       <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden min-h-[440px]">
         {/* Subtle industrial grid pattern */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:3rem_3rem] pointer-events-none z-10" />
-
-        {/* AI Autonomous Detection Badge */}
-        {autoDetectedBadge && (
-          <div className="absolute top-4 left-4 z-30 bg-[#030712]/95 border border-[#00F0FF]/50 rounded-2xl px-3.5 py-2 shadow-2xl flex items-center gap-3 backdrop-blur-md animate-fadeIn">
-            <div className="w-7 h-7 rounded-xl bg-[#00F0FF]/20 flex items-center justify-center text-[#00F0FF]">
-              <Sparkles className="w-4 h-4 animate-spin" />
-            </div>
-            <div>
-              <div className="text-[10px] font-mono text-[#00F0FF] font-black uppercase tracking-wider flex items-center gap-2">
-                <span>AI AUTO-DETECTED FAULT</span>
-                <span className="px-1.5 py-0.5 rounded bg-[#00F0FF]/20 text-[9px] text-white font-mono">{autoDetectedBadge.confidence}% CERTAINTY</span>
-              </div>
-              <div className="text-xs font-mono text-slate-200 font-bold">
-                {autoDetectedBadge.reason}
-              </div>
-            </div>
-            <button
-              onClick={() => setAutoDetectedBadge(null)}
-              className="p-1 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/10 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
 
         {/* Radar Scanning Line */}
         {isScanning && (
@@ -497,6 +512,18 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
                 <p className="text-xs text-slate-200 leading-relaxed">
                   {selectedOverlay.detail}
                 </p>
+                {onSendMessage && (
+                  <button
+                    onClick={() => {
+                      onSendMessage(`Explain details, failure hypotheses, and safety checklist for: ${selectedOverlay.label}`);
+                      soundEngine.playMicOn();
+                    }}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#00F0FF]/20 hover:bg-[#00F0FF]/30 text-[#00F0FF] text-[11px] font-mono font-black transition-all cursor-pointer border border-[#00F0FF]/40"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Ask AI Copilot About This Component</span>
+                  </button>
+                )}
               </div>
 
               <button

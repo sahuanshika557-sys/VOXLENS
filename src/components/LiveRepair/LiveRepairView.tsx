@@ -131,6 +131,7 @@ export const LiveRepairView: React.FC<LiveRepairViewProps> = ({
               boundingBoxes={boundingBoxes}
               scenarioId={scenarioId}
               onSelectScenario={onSelectScenario}
+              onSendMessage={onSendMessage}
             />
           </div>
 
