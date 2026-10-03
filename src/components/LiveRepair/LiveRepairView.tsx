@@ -60,6 +60,7 @@ interface LiveRepairViewProps {
   verifiedTelemetryStatus?: string;
   recommendedAction?: string;
   boundingBoxes?: any[];
+  onSelectScenario?: (scenarioId: string) => void;
 }
 
 export const LiveRepairView: React.FC<LiveRepairViewProps> = ({
@@ -95,7 +96,8 @@ export const LiveRepairView: React.FC<LiveRepairViewProps> = ({
   aiInferences,
   verifiedTelemetryStatus,
   recommendedAction,
-  boundingBoxes
+  boundingBoxes,
+  onSelectScenario
 }) => {
   const [rightPanelTab, setRightPanelTab] = useState<'copilot' | 'workflow' | 'reasoning' | 'evidence' | 'agent' | 'timeline'>('copilot');
 
@@ -128,6 +130,7 @@ export const LiveRepairView: React.FC<LiveRepairViewProps> = ({
               voiceState={voiceState}
               boundingBoxes={boundingBoxes}
               scenarioId={scenarioId}
+              onSelectScenario={onSelectScenario}
             />
           </div>
 

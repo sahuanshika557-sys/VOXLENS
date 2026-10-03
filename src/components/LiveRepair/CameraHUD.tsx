@@ -19,6 +19,20 @@ import { Equipment, VoiceState, BoundingBox } from '../../types';
 import { soundEngine } from '../../utils/soundEngine';
 import { AIOrb } from '../common/AIOrb';
 
+const SCENARIO_DEFAULT_IMAGES: Record<string, string> = {
+  'packaging-defect': 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1600&q=85',
+  'e17-cooling': 'https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=1600&q=85',
+  'bearing-vibration': 'https://images.unsplash.com/photo-1581092580497-e0d23cbdf1dc?auto=format&fit=crop&w=1600&q=85',
+  'belt-slippage': 'https://images.unsplash.com/photo-1581092162384-8987c1d64718?auto=format&fit=crop&w=1600&q=85',
+  'hydraulic-press': 'https://images.unsplash.com/photo-1504917599217-d4dc5ebe6122?auto=format&fit=crop&w=1600&q=85',
+  'optical-ocr': 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1600&q=85',
+  'low-confidence': 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&w=1600&q=85',
+  'camera-blocked': 'https://images.unsplash.com/photo-1533090161767-e6ffed986b88?auto=format&fit=crop&w=1600&q=85',
+  'zero-inventory': 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1600&q=85',
+  'manual-missing': 'https://images.unsplash.com/photo-1581092334651-ddf26d9a09d0?auto=format&fit=crop&w=1600&q=85',
+  'network-degraded': 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=85'
+};
+
 interface CameraHUDProps {
   equipment: Equipment;
   onDetectFault: (errorCode: string) => void;
@@ -30,6 +44,7 @@ interface CameraHUDProps {
   boundingBoxes?: BoundingBox[];
   scenarioId?: string;
   onResetImage?: () => void;
+  onSelectScenario?: (scenarioId: string) => void;
 }
 
 export const CameraHUD: React.FC<CameraHUDProps> = ({
@@ -41,8 +56,9 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
   onImageUploaded,
   voiceState = 'IDLE',
   boundingBoxes,
-  scenarioId = 'carton-damage',
-  onResetImage
+  scenarioId = 'packaging-defect',
+  onResetImage,
+  onSelectScenario
 }) => {
   const [useWebcam, setUseWebcam] = useState<boolean>(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -52,8 +68,8 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Default packaging defect overlays if none passed
-  const activeBoxes: BoundingBox[] = boundingBoxes || [
+  // Active overlays according to selected scenario
+  const activeBoxes: BoundingBox[] = (boundingBoxes && boundingBoxes.length > 0) ? boundingBoxes : [
     {
       id: 'bb-carton-damaged',
       label: 'DAMAGED CARTON (CRUSHED & TORN)',
@@ -190,8 +206,8 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
     }
   };
 
-  // High-definition packaging line image featuring conveyor, robotic machinery, and cartons
-  const imageSrc = uploadedImage || 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1600&q=85';
+  // High-definition equipment image dynamically linked to the active fault scenario
+  const imageSrc = uploadedImage || SCENARIO_DEFAULT_IMAGES[scenarioId] || SCENARIO_DEFAULT_IMAGES['packaging-defect'];
 
   const orbState = isScanning ? 'scanning' : voiceState === 'LISTENING' ? 'listening' : voiceState === 'PROCESSING' ? 'processing' : 'idle';
 
@@ -258,6 +274,44 @@ export const CameraHUD: React.FC<CameraHUDProps> = ({
           >
             Dismiss
           </button>
+        </div>
+      )}
+
+      {/* Quick Scenario Preset Strip */}
+      {onSelectScenario && (
+        <div className="px-4 py-2 bg-[#040813] border-b border-white/[0.06] flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00F0FF]" />
+            Fault Test Preset:
+          </span>
+          {[
+            { id: 'packaging-defect', label: '📦 1. Crushed Carton' },
+            { id: 'e17-cooling', label: '🌡️ 2. E17 Thermal Overload' },
+            { id: 'bearing-vibration', label: '⚙️ 3. Bearing 4.8mm/s' },
+            { id: 'belt-slippage', label: '🔄 4. Belt Slippage' },
+            { id: 'hydraulic-press', label: '🗜️ 5. CR-800 Hydraulic' },
+            { id: 'optical-ocr', label: '⚡ 6. E04 Electrical OCR' },
+            { id: 'low-confidence', label: '🕸️ 8. Low Confidence (Cage Mesh)' },
+            { id: 'camera-blocked', label: '🌫️ 9. Camera Obscured (Dust/Glare)' },
+            { id: 'zero-inventory', label: '📦 7. Zero Stockroom Alert' },
+            { id: 'manual-missing', label: '📖 10. IEC Standards' },
+            { id: 'network-degraded', label: '📶 11. Offline Edge SLM' }
+          ].map(sc => (
+            <button
+              key={sc.id}
+              onClick={() => {
+                onSelectScenario(sc.id);
+                soundEngine.playMicOn();
+              }}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold whitespace-nowrap transition-all cursor-pointer ${
+                scenarioId === sc.id
+                  ? 'bg-[#00F0FF] text-slate-950 shadow-md shadow-[#00F0FF]/20 ring-1 ring-[#00F0FF]'
+                  : 'bg-white/[0.04] text-slate-300 hover:text-white hover:bg-white/[0.08]'
+              }`}
+            >
+              {sc.label}
+            </button>
+          ))}
         </div>
       )}
 

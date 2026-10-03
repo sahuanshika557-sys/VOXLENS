@@ -412,33 +412,64 @@ export function App() {
     addToast(next ? 'Speech Synthesis Enabled' : 'Speech Synthesis Disabled', undefined, 'info');
   };
 
-  // Trigger CV Scan
+  // Trigger Multimodal Vision Scan (Calibrated to Active Industrial Fault Suite)
   const handleTriggerScan = () => {
     setIsScanning(true);
     soundEngine.playScanPing();
     const t = getTranslation(currentLanguage);
     const langMeta = SUPPORTED_LANGUAGES.find(l => l.code === currentLanguage);
+    const cfg = getScenarioConfig(currentScenario);
 
-    addToast('Scanning Image', 'Analyzing visible objects, carton damage, and stack light...', 'info');
+    addToast('Scanning Image Feed', `Analyzing visual frame for ${cfg.label}...`, 'info');
 
     setTimeout(() => {
       setIsScanning(false);
       soundEngine.playScanPing();
-      addToast('Defect Identified', 'Crushed & torn carton on conveyor · Red stack light active', 'warning');
 
-      const responseText = t.copilot?.responseScanDetected || "Image analysis verified: Severely crushed and torn cardboard carton observed on conveyor. Red stack light active — alarm meaning undetermined pending PLC/HMI verification.";
+      let responseText = "";
+      if (currentScenario === 'packaging-defect') {
+        addToast('Defect Identified', 'Crushed & torn carton on conveyor · Red stack light active', 'warning');
+        responseText = t.copilot?.responseScanDetected || "Image analysis verified: Severely crushed and torn cardboard carton observed on conveyor. Red stack light active — alarm meaning undetermined pending PLC/HMI verification.";
+      } else if (currentScenario === 'camera-blocked') {
+        addToast('Optical Mode Degraded', 'Lens glare / particulate dust detected. SCADA fallback active.', 'warning');
+        responseText = "Optical Mode Degraded: Particulate dust and high-bay lighting glare detected over optical camera dome. Anti-Hallucination Guardrail: Optical guessing suspended. Autonomous fallback to real-time SCADA telemetry (Motor: 88.4°C, Cooling: 1.2 L/min) and Voice Copilot active.";
+      } else if (currentScenario === 'low-confidence') {
+        addToast('Low Visual Confidence', 'Conveyor safety guard mesh partially occludes view (38%).', 'warning');
+        responseText = "⚠ Low Visual Confidence (38%): Protective wire-mesh safety cage and shadows partially occlude the robotic transfer zone. Anti-hallucination guardrail active: VOXLENS will not guess an unverified fault code. Please capture an orthogonal photo or verify clearances physically.";
+      } else if (currentScenario === 'e17-cooling') {
+        addToast('E17 Thermal Overload', '7-Segment OCR verified E17 · Stator hotspot 88.4°C', 'warning');
+        responseText = "Thermal Overload Verified: 7-segment digital display OCR matches E17. Stator housing thermal hotspot registers 88.4°C (+13.4°C above safe limit) with severe cooling airflow restriction (1.2 L/min). Step 1 LOTO isolation required.";
+      } else if (currentScenario === 'bearing-vibration') {
+        addToast('Bearing Vibration Anomaly', 'ISO 10816-3 Zone C: 4.8 mm/s RMS', 'warning');
+        responseText = "Mechanical Vibration Anomaly: Drive-end bearing accelerometer registers 4.8 mm/s RMS (ISO 10816-3 Zone C). Peak harmonic spectrum indicates inner race fatigue/spalling.";
+      } else if (currentScenario === 'belt-slippage') {
+        addToast('Drive Belt Slippage', 'Optical speed delta: 2708 vs 2840 RPM (-4.6%)', 'warning');
+        responseText = "Transmission Slippage Detected: Optical shaft encoder measures 4.6% speed slip under load. Tension frequency measured at 38 Hz vs 52 Hz spec.";
+      } else if (currentScenario === 'hydraulic-press') {
+        addToast('Hydraulic Pressure Drop', 'CR-800 manifold transducer: 2200 kPa (-12%)', 'warning');
+        responseText = "Hydraulic Manifold Anomaly: CR-800 digital pressure transducer reads 2200 kPa (-12% drop). Proportional directional valve weeping noted.";
+      } else if (currentScenario === 'optical-ocr') {
+        addToast('Electrical Overcurrent', '7-Segment OCR matches E04 · Current spike 34.8A', 'warning');
+        responseText = "Electrical Overcurrent Trip: 7-segment display reads E04. VFD current spiked to 34.8A with 22% phase imbalance at Terminal Block TB-2.";
+      } else if (currentScenario === 'zero-inventory') {
+        addToast('Stockroom Zero Inventory', 'Bay 4 Bin C-14: 0 units available', 'warning');
+        responseText = "Stockroom Stockout: Bin C-14 stock ledger verified 0 units for Part #VX-CF42. Engaging Level-2 Supervisor Gate for regional courier dispatch.";
+      } else {
+        addToast(cfg.faultTitle, `Visual scan verified: ${cfg.defectCategory}`, 'info');
+        responseText = `${cfg.faultTitle} verified. Observed: ${cfg.observedEvidence.join(' · ')}. Recommended action: ${cfg.recommendedAction}`;
+      }
 
       const botMsg: CopilotMessage = {
         id: `scan-msg-${Date.now()}`,
         sender: 'voxlens',
         text: responseText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        citations: PACKAGING_DEFECT_MANUAL_CITATIONS
+        citations: cfg.citations
       };
       setMessages(prev => [...prev, botMsg]);
 
       soundEngine.speak(
-        responseText.slice(0, 200),
+        responseText.slice(0, 220),
         langMeta?.speechLocale || 'en-US'
       );
     }, 1200);
@@ -778,6 +809,7 @@ export function App() {
                 verifiedTelemetryStatus={activeScenarioConfig.verifiedTelemetryStatus}
                 recommendedAction={activeScenarioConfig.recommendedAction}
                 boundingBoxes={activeScenarioConfig.boundingBoxes}
+                onSelectScenario={handleSelectScenario}
               />
             );
           })()}
